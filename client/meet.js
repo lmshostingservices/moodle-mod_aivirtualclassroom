@@ -933,12 +933,27 @@ const Look = {
       if (!gl) throw new Error('no webgl');
       cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); if (this.video === video) FxSafe.fail('look', 'graphics reset'); });
       const vs = 'attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}';
+      // One light graphics pass. Around your face: a soft key light and a touch of sharpening. Away from you: the room
+      // goes a little softer, darker and calmer, like a portrait lens. Plus auto exposure, white balance and a gentle
+      // film-style tone curve. No cut-out model is needed (the face finder is tiny), so it suits ordinary computers.
       const fs = `precision mediump float;varying vec2 uv;uniform sampler2D t;uniform vec4 crop;uniform vec3 gain;uniform float lift;
-void main(){vec2 q=crop.xy+uv*crop.zw;vec3 c=texture2D(t,q).rgb*gain;
-c=c+lift*(1.-c)*(1.-c)*.5;                       /* lift shadows */
-c=mix(vec3(.5),c,1.06);                          /* a touch of contrast */
-float l=dot(c,vec3(.299,.587,.114));c=mix(vec3(l),c,1.08); /* a touch of colour */
-vec2 d=uv-vec2(.5,.42);c*=1.+.07*exp(-dot(d,d)*7.)-.05*smoothstep(.35,.9,length(uv-.5)); /* soft key light, light vignette */
+uniform vec2 fc;uniform float fr;uniform float room;uniform vec2 px;
+vec3 grab(vec2 o){return texture2D(t,crop.xy+o*crop.zw).rgb;}
+void main(){vec2 q=uv;vec3 c=grab(q);
+vec2 e=(uv-fc)/vec2(fr*1.25,fr*2.1);float d=length(e);            /* distance from you (head and shoulders) */
+float w=smoothstep(.75,1.7,d)*room;                                 /* how much "room" this pixel is */
+vec3 bl=vec3(0.);float n=0.;
+for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){vec2 o=vec2(float(i),float(j))*px*(1.5+7.*w);bl+=grab(q+o);n+=1.;}}
+bl/=n;
+vec3 sm=(grab(q+vec2(px.x,0.))+grab(q-vec2(px.x,0.))+grab(q+vec2(0.,px.y))+grab(q-vec2(0.,px.y)))*.25;
+c=mix(c,bl,w*.85);                                                  /* soft background */
+c+=(c-sm)*.45*(1.-w);                                               /* crisper you */
+c*=gain;
+c=c+lift*(1.-c)*(1.-c)*.5;                                          /* lift shadows */
+c*=1.+.20*exp(-d*d*1.4)-.26*w;                                      /* key light on you, room a little darker */
+float l=dot(c,vec3(.299,.587,.114));c=mix(vec3(l),c,1.10-.25*w);    /* colour on you, calmer room */
+c=c*(1.+.35*c)/(1.+.35*c*c+.0001)*1.02;                              /* gentle film curve */
+c=mix(vec3(.5),c,1.05);
 gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
       const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; };
       const pr = gl.createProgram();
@@ -958,6 +973,10 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
       const uCrop = gl.getUniformLocation(pr, 'crop');
       const uGain = gl.getUniformLocation(pr, 'gain');
       const uLift = gl.getUniformLocation(pr, 'lift');
+      const uFc = gl.getUniformLocation(pr, 'fc');
+      const uFr = gl.getUniformLocation(pr, 'fr');
+      const uRoom = gl.getUniformLocation(pr, 'room');
+      gl.uniform2f(gl.getUniformLocation(pr, 'px'), 1 / w, 1 / hh);
       // Small copies: 48 x 27 to measure the light, 256 wide for the face finder.
       const tiny = h('canvas', { width: 48, height: 27 });
       const tx = tiny.getContext('2d', { willReadFrequently: true });
@@ -967,8 +986,8 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
       // Gentle framing: head-and-shoulders like a webcam on a good monitor, never a close-up.
       const ZOOM = 1.05; // when no face is found
       const MAXZ = () => (S.bg && S.bg !== 'none' ? 1.12 : 1.2); // less zoom when a background effect is on
-      const cur = { z: ZOOM, cx: 0.5, cy: 0.5, g: [1, 1, 1], lift: 0 };
-      const tgt = { z: ZOOM, cx: 0.5, cy: 0.5, g: [1, 1, 1], lift: 0 };
+      const cur = { z: ZOOM, cx: 0.5, cy: 0.5, g: [1, 1, 1], lift: 0, fx: 0.5, fy: 0.42, fr: 0.16 };
+      const tgt = { z: ZOOM, cx: 0.5, cy: 0.5, g: [1, 1, 1], lift: 0, fx: 0.5, fy: 0.42, fr: 0.16 };
       let lastLight = 0, lastFace = 0, lastSeen = 0;
       this.video = video;
       this.gl = gl;
@@ -1008,6 +1027,7 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
               const cy = fcy + 0.1 / z;
               // Only re-frame when the person has really moved (no constant drifting). A steady frame also keeps the
               // background cut-out clean: a picture that keeps sliding under it shows a halo at the edge.
+              tgt.fx = fcx; tgt.fy = fcy; tgt.fr = Math.max(0.08, Math.min(0.35, bb.width / fw)); // where you are, for the light
               if (Math.abs(fcx - tgt.cx) > 0.07 || Math.abs(cy - tgt.cy) > 0.07 || Math.abs(z - tgt.z) > 0.08) {
                 tgt.z = z; tgt.cx = fcx; tgt.cy = cy;
               }
@@ -1019,6 +1039,7 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
           cur.cx += (tgt.cx - cur.cx) * ease;
           cur.cy += (tgt.cy - cur.cy) * ease;
           cur.lift += (tgt.lift - cur.lift) * 0.06;
+          cur.fx += (tgt.fx - cur.fx) * 0.12; cur.fy += (tgt.fy - cur.fy) * 0.12; cur.fr += (tgt.fr - cur.fr) * 0.08;
           cur.g = cur.g.map((k, i) => k + (tgt.g[i] - k) * 0.06);
           const cw = 1 / cur.z, chh = 1 / cur.z;
           const x0 = Math.max(0, Math.min(1 - cw, cur.cx - cw / 2));
@@ -1027,6 +1048,11 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
           gl.uniform4f(uCrop, x0, y0, cw, chh);
           gl.uniform3f(uGain, cur.g[0], cur.g[1], cur.g[2]);
           gl.uniform1f(uLift, cur.lift);
+          // Your position in the framed picture. With a background effect on, the room is replaced anyway, so the
+          // lens softening is left out (it would only blur the edge the cut-out uses).
+          gl.uniform2f(uFc, (cur.fx - x0) / cw, (cur.fy - y0) / chh);
+          gl.uniform1f(uFr, cur.fr / cw);
+          gl.uniform1f(uRoom, S.bg && S.bg !== 'none' ? 0 : 1);
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         } catch (err) { return FxSafe.fail('look', err && err.message); }
       };
@@ -1160,13 +1186,8 @@ gl_FragColor=vec4(r,r,r,1.);}`;
       const fs = `precision mediump float;varying vec2 uv;uniform sampler2D vid,alp,bg;uniform vec2 bpx;uniform float bb;
 vec3 bgAt(vec2 p){if(bb<.5)return texture2D(bg,p).rgb;vec3 s=vec3(0.);
 for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){s+=texture2D(bg,p+vec2(float(i),float(j))*bpx*.9).rgb;}}return s/25.;}
-void main(){vec3 c=texture2D(vid,uv).rgb;float r=texture2D(alp,vec2(uv.x,1.-uv.y)).r;vec3 b=bgAt(uv);
-/* picture: a slightly tighter edge (no rim of the real room) and the picture's colour blended into the edge so you
-   sit in it; blur: a softer edge. */
-float a=bb<.5?smoothstep(.42,.78,r):smoothstep(.30,.70,r);
-float e=(1.-a)*a*4.;vec3 f=mix(c,b,(bb<.5?.32:.14)*e);
-if(bb<.5){float l=dot(b,vec3(.299,.587,.114))-dot(c,vec3(.299,.587,.114));f+=l*.18*e;}
-gl_FragColor=vec4(mix(b,f,a),1.);}`;
+void main(){vec3 c=texture2D(vid,uv).rgb;float a=smoothstep(.30,.70,texture2D(alp,vec2(uv.x,1.-uv.y)).r);vec3 b=bgAt(uv);
+vec3 f=mix(c,b,.14*(1.-a)*a*4.);gl_FragColor=vec4(mix(b,f,a),1.);}`;
       const sh_ = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; };
       const prog = (f) => { const p = gl.createProgram(); gl.attachShader(p, sh_(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh_(gl.FRAGMENT_SHADER, f)); gl.linkProgram(p); return p; };
       const pG = prog(fsGuide);
@@ -1223,9 +1244,7 @@ gl_FragColor=vec4(mix(b,f,a),1.);}`;
           lastT = video.currentTime;
           // The person cut-out runs about 15 times a second (smoothed between runs); the picture itself is drawn
           // at the full camera frame rate. This halves the work and keeps video smooth on ordinary computers.
-          // With a picture behind you the cut-out must match every frame: a cut-out from an older frame lets the real
-          // room show around you when you move. Blur hides that, so it can run the cut-out less often.
-          const segNow = studio || (bgCanvas ? (!this.cpu || performance.now() - lastSeg > 40) : performance.now() - lastSeg > 62);
+          const segNow = studio || performance.now() - lastSeg > 62;
           if (segNow) { lastSeg = performance.now(); sctx.drawImage(video, 0, 0, sw, sh); }
           if (!studio && segNow) this.segmenter.segmentForVideo(small, performance.now(), (res) => {
             const ms = res.confidenceMasks;
@@ -1234,7 +1253,7 @@ gl_FragColor=vec4(mix(b,f,a),1.);}`;
             for (let i = 0; i < mask.length; i++) {
               const pers = this.multiclass ? 1 - bgConf[i] : bgConf[i];
               // Steady when still, quick to follow when moving.
-              const k = havePrev ? Math.min(.95, Math.max(bgCanvas ? .6 : .35, Math.abs(pers - prev[i]) * 2.2)) : 1;
+              const k = havePrev ? Math.min(.9, Math.max(.35, Math.abs(pers - prev[i]) * 2.2)) : 1;
               const v = prev[i] + (pers - prev[i]) * k;
               prev[i] = v;
               mask[i] = v * 255;
@@ -2012,6 +2031,18 @@ function renderBar() {
   const item = (ic, label, fn, cls) => h('button', { class: 'lm-menu-item ' + (cls || ''), onclick: () => { closePops(); fn(); } }, icon(ic), h('span', {}, label));
   const check = (ic, label, on, fn) => h('label', { class: 'lm-menu-item check' }, icon(ic), h('span', {}, label),
     h('input', { type: 'checkbox', checked: on, onchange: (e) => fn(e.target.checked) }), h('span', { class: 'sw' }));
+  const panelBtn = (k, label, ic, badge) => btn(label, ic, () => {
+    if (panelOpen() && S.tab === k) return togglePanel(false);
+    S.tab = k; if (k === 'chat') S.unread = 0; togglePanel(true); renderSide();
+  }, { cls: panelOpen() && S.tab === k ? 'on' : '', badge: badge || null, title: label });
+  const bgOn = S.bg && S.bg !== 'none' && S.bg !== 'blur';
+  const endMeeting = () => { if (window.confirm('End the meeting for everyone?')) send({ t: 'end' }); };
+  const pollBadge = pollWaiting ? '!' : null;
+  // Bottom bar, left to right, one job per group:
+  //  1 You: mic, camera, screen share      2 Camera look: blur, background, smooth skin, studio look
+  //  3 Take part: hand, react, captions, present, view      4 Panels: chat, people, notes, Q&A, polls, breakouts
+  //  5 Settings: your name, data saver      6 Teacher: record      7 Leave (and End for teachers)
+  // Groups marked lm-fold go into "More" on narrower screens (lm-fold2 only on small ones).
   bar.replaceChildren(
     h('div', { class: 'lm-group' },
       h('div', { class: 'lm-split' },
@@ -2019,7 +2050,12 @@ function renderBar() {
         pop(h('button', { class: 'lm-split-lang', title: 'Microphone options', 'aria-label': 'Microphone options', onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
           h('div', { class: 'lm-pop menu' }, check('mic', 'Noise suppression', S.noiseSuppression, setNoiseSuppression)))),
       btn(S.camOn ? 'Stop video' : 'Start video', S.camOn ? 'cam' : 'camOff', () => toggleCam(), { cls: S.camOn ? '' : 'off', disabled: !camAllowed() && !S.camOn, title: camAllowed() ? 'Camera' : 'Cameras are off in this room to save bandwidth' }),
-      btn(S.screen ? 'Stop sharing' : 'Share', S.screen ? 'stop' : 'screen', toggleScreen, { cls: S.screen ? 'on' : '', disabled: !isMod() && !C.studentScreenShare && !pol().present })),
+      btn(S.screen ? 'Stop share' : 'Share', S.screen ? 'stop' : 'screen', toggleScreen, { cls: S.screen ? 'on' : '', disabled: !isMod() && !C.studentScreenShare && !pol().present })),
+    h('div', { class: 'lm-group lm-fold' },
+      btn('Blur', 'blur', () => setBackground(S.bg === 'blur' ? 'none' : 'blur'), { cls: S.bg === 'blur' ? 'on' : '', pressed: S.bg === 'blur', title: 'Blur your background' }),
+      btn('Background', 'image', () => Backgrounds.open(), { cls: bgOn ? 'on' : '', title: bgOn ? 'Background: ' + bgLabel() : 'Put a picture behind you' }),
+      btn('Smooth skin', 'sparkles', () => setSmooth(!S.smooth), { cls: S.smooth ? 'on' : '', pressed: !!S.smooth, title: 'A gentle touch-up of your camera' }),
+      btn('Studio look', 'sun', () => setLook(!S.look), { cls: S.look ? 'on' : '', pressed: !!S.look, title: 'Better lighting, and keeps you centred and framed' })),
     h('div', { class: 'lm-group' },
       btn(S.hand ? 'Lower hand' : 'Raise hand', 'hand', () => { send({ t: 'hand', up: !S.hand }); if (!S.hand) S.handCount++; }, { cls: S.hand ? 'on hand' : '', pressed: S.hand }),
       pop(btn('React', 'smile', toggleOpen),
@@ -2042,31 +2078,36 @@ function renderBar() {
           S.room && S.room.pres ? item('present', `Show “${S.room.pres.name}”`, () => send({ t: 'stage', mode: 'pres' })) : '',
           S.room && S.room.stage !== 'grid' ? item('grid', 'Back to video', () => send({ t: 'stage', mode: 'grid' })) : '')) : '',
       btn(showingSpeaker ? 'Gallery' : 'Speaker', showingSpeaker ? 'grid' : 'speaker', () => { S.view = showingSpeaker ? 'gallery' : 'speaker'; renderAll(); }, { title: showingSpeaker ? 'Gallery view' : 'Speaker view' })),
-    // Camera look: one tap each on wide screens; on small screens these are in "More" (see .lm-wide / .lm-narrow).
-    h('div', { class: 'lm-group lm-wide' },
-      btn('Blur', 'blur', () => setBackground(S.bg === 'blur' ? 'none' : 'blur'), { cls: S.bg === 'blur' ? 'on' : '', pressed: S.bg === 'blur', title: 'Blur your background' }),
-      btn('Background', 'image', () => Backgrounds.open(), { cls: S.bg && S.bg !== 'none' && S.bg !== 'blur' ? 'on' : '', title: S.bg && S.bg !== 'none' && S.bg !== 'blur' ? 'Background: ' + bgLabel() : 'Put a picture behind you' }),
-      btn('Smooth skin', 'sparkles', () => setSmooth(!S.smooth), { cls: S.smooth ? 'on' : '', pressed: !!S.smooth, title: 'A gentle touch-up of your camera' }),
-      btn('Studio look', 'sun', () => setLook(!S.look), { cls: S.look ? 'on' : '', pressed: !!S.look, title: 'Better lighting, and keeps you centred and framed' }),
-      btn('Data saver', 'feather', () => setDataSaver(!S.dataSaver), { cls: S.dataSaver ? 'on' : '', pressed: !!S.dataSaver, title: 'Hear everyone and see slides and screens, without camera video' })),
-    h('div', { class: 'lm-group lm-wide' },
+    h('div', { class: 'lm-group lm-panels' },
+      panelBtn('chat', 'Chat', 'chat', S.unread),
+      h('span', { class: 'lm-fold2' }, panelBtn('people', 'People', 'users', isMod() && S.lobby.length ? S.lobby.length : null),
+        panelBtn('notes', 'Notes', 'notes'),
+        panelBtn('qa', 'Q&A', 'question'),
+        panelBtn('polls', 'Polls', 'poll', pollBadge),
+        isMod() ? panelBtn('breakouts', 'Breakouts', 'door', S.bo && S.bo.active ? '●' : null) : '')),
+    h('div', { class: 'lm-group lm-fold' },
       btn('My name', 'pen', renameMe, { title: 'Change your name as others see it in this class' }),
-      isMod() ? btn(Recorder.active ? 'Stop rec' : 'Record', Recorder.active ? 'stop' : 'rec', () => Recorder.toggle(), { cls: Recorder.active ? 'rec on' : '', pressed: !!Recorder.active, title: Recorder.active ? 'Stop recording' : 'Start recording' }) : '',
-      isMod() ? btn('Breakouts', 'door', () => { S.tab = 'breakouts'; togglePanel(true); renderSide(); }, { cls: S.bo && S.bo.active ? 'on' : '', title: 'Breakout rooms' }) : ''),
+      btn('Data saver', 'feather', () => setDataSaver(!S.dataSaver), { cls: S.dataSaver ? 'on' : '', pressed: !!S.dataSaver, title: 'Hear everyone and see slides and screens, without camera video' })),
+    isMod() ? h('div', { class: 'lm-group lm-fold' },
+      btn(Recorder.active ? 'Stop rec' : 'Record', Recorder.active ? 'stop' : 'rec', () => Recorder.toggle(), { cls: Recorder.active ? 'rec on' : '', pressed: !!Recorder.active, title: Recorder.active ? 'Stop recording' : 'Start recording' })) : '',
     h('div', { class: 'lm-group' },
-      btn('Chat', 'chat', () => togglePanel(), { badge: sideBadge || null, cls: panelOpen() ? 'on' : '', title: 'Chat, people, notes and more' }),
-      isMod() ? h('span', { class: 'lm-wide' }, btn('End', 'x', () => { if (window.confirm('End the meeting for everyone?')) send({ t: 'end' }); }, { cls: 'leave', title: 'End the meeting for everyone' })) : '',
-      h('span', { class: 'lm-narrow' }, pop(btn('More', 'more', toggleOpen),
+      h('span', { class: 'lm-more' }, pop(btn('More', 'more', toggleOpen),
         h('div', { class: 'lm-pop menu up-right' },
           check('blur', 'Blur background', S.bg === 'blur', (on) => setBackground(on ? 'blur' : 'none')),
-          item('image', S.bg && S.bg !== 'none' && S.bg !== 'blur' ? 'Background: ' + bgLabel() : 'Background picture', () => Backgrounds.open()),
+          item('image', bgOn ? 'Background: ' + bgLabel() : 'Background picture', () => Backgrounds.open()),
           check('sparkles', 'Smooth skin', S.smooth, setSmooth),
           check('sun', 'Studio look', S.look, setLook),
-          check('feather', 'Data saver', S.dataSaver, setDataSaver),
+          h('span', { class: 'lm-more2' },
+            item('users', 'People', () => { S.tab = 'people'; togglePanel(true); renderSide(); }),
+            item('notes', 'Notes', () => { S.tab = 'notes'; togglePanel(true); renderSide(); }),
+            item('question', 'Q&A', () => { S.tab = 'qa'; togglePanel(true); renderSide(); }),
+            item('poll', 'Polls', () => { S.tab = 'polls'; togglePanel(true); renderSide(); }),
+            isMod() ? item('door', 'Breakout rooms', () => { S.tab = 'breakouts'; togglePanel(true); renderSide(); }) : ''),
           item('pen', 'Change my name', renameMe),
+          check('feather', 'Data saver', S.dataSaver, setDataSaver),
           isMod() ? item(Recorder.active ? 'stop' : 'rec', Recorder.active ? 'Stop recording' : 'Start recording', () => Recorder.toggle(), Recorder.active ? 'danger' : '') : '',
-          isMod() ? item('door', 'Breakout rooms', () => { S.tab = 'breakouts'; togglePanel(true); renderSide(); }) : '',
-          isMod() ? item('x', 'End meeting for everyone', () => { if (window.confirm('End the meeting for everyone?')) send({ t: 'end' }); }, 'danger') : ''))),
+          isMod() ? item('x', 'End meeting for everyone', endMeeting, 'danger') : ''))),
+      isMod() ? h('span', { class: 'lm-fold-end' }, btn('End', 'x', endMeeting, { cls: 'end', title: 'End the meeting for everyone' })) : '',
       btn('Leave', 'leave', leave, { cls: 'leave' })),
   );
 }

@@ -1,5 +1,10 @@
 # Changes
 
+## 1.1.3 (2026112400)
+- Background cut-out is back to the 1.1.1 settings (the 1.1.2 edge changes clipped ears).
+- Studio look now does much more, still in one light graphics pass with no cut-out model: a portrait-lens look (the room around you goes softer, a little darker and calmer), a soft key light that follows your face, a touch of sharpening on you, auto exposure, white balance and a gentle film-style tone curve. When a background effect is on, the lens softening is left out so the cut-out edge stays clean.
+- Bottom bar redesigned: smaller buttons in clear groups, left to right: You (mic with noise suppression, camera, share); Camera look (blur, background, smooth skin, studio look); Take part (hand, react, captions, present, view); Panels (chat, people, notes, Q&A, polls, breakouts); Settings (my name, data saver); Teacher (record); End and Leave. Under 1500 px wide the camera-look, settings and record buttons move into More; under 1180 px the panel buttons (except Chat) and End move there too.
+
 ## 1.1.2 (2026112300)
 - Studio look is no longer a close-up: it frames you head-and-shoulders (about 5–20% zoom instead of up to 45%), and less again when a background is on. It only re-frames when you really move, and moves slowly, so the picture stops drifting.
 - The bottom bar now has one-tap buttons for everything that was under the three dots: Blur, Background (pictures), Smooth skin, Studio look, Data saver, My name, and for teachers Record, Breakouts and End (end the meeting for everyone). Noise suppression is in the small arrow next to Mute. On smaller screens (under about 1180 px wide, tablets and phones) these fold back into a "More" menu so the bar stays tidy. The bar tightens on laptop screens so Leave is always visible.
