@@ -1141,6 +1141,7 @@ const Blur = {
       const small = h('canvas', { width: sw, height: sh });
       const sctx = small.getContext('2d');
       const mask = new Uint8Array(sw * sh);
+      const grow = new Uint8Array(sw * sh);
       const prev = new Float32Array(sw * sh);
       let havePrev = false;
       // Background: picture cover-fitted once, or a blurred copy of the camera each frame.
@@ -1190,11 +1191,13 @@ gl_FragColor=vec4(r,r,r,1.);}`;
 vec3 bgAt(vec2 p){if(bb<.5)return texture2D(bg,p).rgb;vec3 s=vec3(0.);
 for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){s+=texture2D(bg,p+vec2(float(i),float(j))*bpx*.9).rgb;}}return s/25.;}
 float al(vec2 p){return texture2D(alp,vec2(p.x,1.-p.y)).r;}
-void main(){vec3 c=texture2D(vid,uv).rgb;float r=al(uv);float a=smoothstep(.30,.70,r);vec3 b=bgAt(uv);
+void main(){vec3 c=texture2D(vid,uv).rgb;float r=al(uv);float a=smoothstep(.25,.66,r);vec3 b=bgAt(uv);
 float e=(1.-a)*a*4.;
-if(e>.02){vec3 fg=c;float best=r;
-for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){vec2 o=uv+vec2(float(i),float(j))*vpx*1.6;float k=al(o);if(k>best){best=k;fg=texture2D(vid,o).rgb;}}}
-c=mix(c,fg,clamp(e*1.6,0.,1.));}
+/* the whole edge band, including the last pixels just inside you where webcam sharpening leaves a dark rim */
+float z=smoothstep(.02,.2,r)*(1.-smoothstep(.8,.99,r));
+if(z>.01){vec3 fg=c;float best=r;
+for(int i=-3;i<=3;i++){for(int j=-3;j<=3;j++){vec2 o=uv+vec2(float(i),float(j))*vpx*1.5;float k=al(o);if(k>best+.02){best=k;fg=texture2D(vid,o).rgb;}}}
+c=mix(c,fg,z);}
 vec3 f=mix(c,b,.14*e);gl_FragColor=vec4(mix(b,f,a),1.);}`;
       const sh_ = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; };
       const prog = (f) => { const p = gl.createProgram(); gl.attachShader(p, sh_(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh_(gl.FRAGMENT_SHADER, f)); gl.linkProgram(p); return p; };
@@ -1265,9 +1268,22 @@ vec3 f=mix(c,b,.14*e);gl_FragColor=vec4(mix(b,f,a),1.);}`;
               const k = havePrev ? Math.min(.9, Math.max(.35, Math.abs(pers - prev[i]) * 2.2)) : 1;
               const v = prev[i] + (pers - prev[i]) * k;
               prev[i] = v;
-              mask[i] = v * 255;
+              grow[i] = v * 255;
             }
             havePrev = true;
+            // A soft safety margin: the ring just outside the cut-out gets part of its neighbour's value (fading out),
+            // so ears and the sides of the hair survive without a band of unblurred room around the head.
+            for (let y = 0; y < sh; y++) {
+              for (let x = 0; x < sw; x++) {
+                let m = 0;
+                for (let dy = -1; dy <= 1; dy++) {
+                  const yy = Math.min(sh - 1, Math.max(0, y + dy)) * sw;
+                  for (let dx = -1; dx <= 1; dx++) { const g = grow[yy + Math.min(sw - 1, Math.max(0, x + dx))]; if (g > m) m = g; }
+                }
+                const own = grow[y * sw + x];
+                mask[y * sw + x] = Math.max(own, m * 0.45);
+              }
+            }
           });
           gl.activeTexture(gl.TEXTURE1);
           gl.bindTexture(gl.TEXTURE_2D, tMsk);

@@ -1,7 +1,13 @@
 # Changes
 
+## 1.1.7 (2026112800)
+- Cut-out safety margin halved and softened: the ring just outside you fades out instead of being fully kept, so ears and hair stay without a band of unblurred room around your head and shoulders.
+
+## 1.1.6 (2026112700)
+- Background cut-out keeps your ears and the sides of your hair: the cut-out now has a small safety margin (one detector pixel all round) and keeps a little more of the soft edge. The edge colour clean-up from 1.1.5 stops the margin showing the real room.
+
 ## 1.1.5 (2026112600)
-- No more dotted dark line around you with a background picture or blur. On the soft edge of the cut-out the camera pixel is partly the real room behind you; the colour there is now taken from the nearest pixel that is clearly you. The cut-out shape itself is unchanged (ears stay).
+- No more dotted dark line around you with a background picture or blur. The cut-out shape is exactly the 1.1.1 one (nothing is drawn around you); the dots were camera pixels on the edge: partly the real room, plus the dark rim webcams add next to bright clothes. Along the edge the colour is now taken from the nearest pixel that is clearly you.
 
 ## 1.1.4 (2026112500)
 - Same features as 1.1.3. Code tidied to pass the Moodle Code Checker (0 errors) and the PHPDoc checker (0 problems): formatting fixes across the PHP files and full parameter docs for meet::join_token.
