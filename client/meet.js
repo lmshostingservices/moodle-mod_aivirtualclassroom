@@ -60,6 +60,7 @@ const lsSet = (k, v) => { try { localStorage.setItem('aivirtualclassroom:' + k, 
 
 // ------------------------------------------------------------------ icons (one consistent 24px line set)
 const ICONS = {
+  image: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.5" r="1.6"/><path d="M4 18l5-5 3.5 3.5L15 14l5 4.5"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/>',
   sparkles: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
@@ -963,7 +964,9 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
       const fw = 256, fh = Math.round(256 * hh / w);
       const fcv = h('canvas', { width: fw, height: fh });
       const fx = fcv.getContext('2d');
-      const ZOOM = 1.12; // slight zoom when no face is found
+      // Gentle framing: head-and-shoulders like a webcam on a good monitor, never a close-up.
+      const ZOOM = 1.05; // when no face is found
+      const MAXZ = () => (S.bg && S.bg !== 'none' ? 1.12 : 1.2); // less zoom when a background effect is on
       const cur = { z: ZOOM, cx: 0.5, cy: 0.5, g: [1, 1, 1], lift: 0 };
       const tgt = { z: ZOOM, cx: 0.5, cy: 0.5, g: [1, 1, 1], lift: 0 };
       let lastLight = 0, lastFace = 0, lastSeen = 0;
@@ -1001,15 +1004,20 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
               const bb = d.boundingBox;
               const fcx = (bb.originX + bb.width / 2) / fw;
               const fcy = (bb.originY + bb.height / 2) / fh;
-              tgt.z = Math.max(1.0, Math.min(1.45, 0.24 / Math.max(bb.width / fw, 0.05)));
-              tgt.cx = fcx;
-              tgt.cy = fcy + 0.08 / tgt.z;
+              const z = Math.max(1.0, Math.min(MAXZ(), 0.15 / Math.max(bb.width / fw, 0.05)));
+              const cy = fcy + 0.1 / z;
+              // Only re-frame when the person has really moved (no constant drifting). A steady frame also keeps the
+              // background cut-out clean: a picture that keeps sliding under it shows a halo at the edge.
+              if (Math.abs(fcx - tgt.cx) > 0.07 || Math.abs(cy - tgt.cy) > 0.07 || Math.abs(z - tgt.z) > 0.08) {
+                tgt.z = z; tgt.cx = fcx; tgt.cy = cy;
+              }
             } else if (now - lastSeen > 2500) { tgt.z = ZOOM; tgt.cx = 0.5; tgt.cy = 0.5; }
           }
           // Ease towards the targets so nothing jumps.
-          cur.z += (tgt.z - cur.z) * 0.04;
-          cur.cx += (tgt.cx - cur.cx) * 0.05;
-          cur.cy += (tgt.cy - cur.cy) * 0.05;
+          const ease = S.bg && S.bg !== 'none' ? 0.015 : 0.03; // slow, smooth moves
+          cur.z += (tgt.z - cur.z) * ease;
+          cur.cx += (tgt.cx - cur.cx) * ease;
+          cur.cy += (tgt.cy - cur.cy) * ease;
           cur.lift += (tgt.lift - cur.lift) * 0.06;
           cur.g = cur.g.map((k, i) => k + (tgt.g[i] - k) * 0.06);
           const cw = 1 / cur.z, chh = 1 / cur.z;
@@ -1152,8 +1160,13 @@ gl_FragColor=vec4(r,r,r,1.);}`;
       const fs = `precision mediump float;varying vec2 uv;uniform sampler2D vid,alp,bg;uniform vec2 bpx;uniform float bb;
 vec3 bgAt(vec2 p){if(bb<.5)return texture2D(bg,p).rgb;vec3 s=vec3(0.);
 for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){s+=texture2D(bg,p+vec2(float(i),float(j))*bpx*.9).rgb;}}return s/25.;}
-void main(){vec3 c=texture2D(vid,uv).rgb;float a=smoothstep(.30,.70,texture2D(alp,vec2(uv.x,1.-uv.y)).r);vec3 b=bgAt(uv);
-vec3 f=mix(c,b,.14*(1.-a)*a*4.);gl_FragColor=vec4(mix(b,f,a),1.);}`;
+void main(){vec3 c=texture2D(vid,uv).rgb;float r=texture2D(alp,vec2(uv.x,1.-uv.y)).r;vec3 b=bgAt(uv);
+/* picture: a slightly tighter edge (no rim of the real room) and the picture's colour blended into the edge so you
+   sit in it; blur: a softer edge. */
+float a=bb<.5?smoothstep(.42,.78,r):smoothstep(.30,.70,r);
+float e=(1.-a)*a*4.;vec3 f=mix(c,b,(bb<.5?.32:.14)*e);
+if(bb<.5){float l=dot(b,vec3(.299,.587,.114))-dot(c,vec3(.299,.587,.114));f+=l*.18*e;}
+gl_FragColor=vec4(mix(b,f,a),1.);}`;
       const sh_ = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; };
       const prog = (f) => { const p = gl.createProgram(); gl.attachShader(p, sh_(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh_(gl.FRAGMENT_SHADER, f)); gl.linkProgram(p); return p; };
       const pG = prog(fsGuide);
@@ -1210,7 +1223,9 @@ vec3 f=mix(c,b,.14*(1.-a)*a*4.);gl_FragColor=vec4(mix(b,f,a),1.);}`;
           lastT = video.currentTime;
           // The person cut-out runs about 15 times a second (smoothed between runs); the picture itself is drawn
           // at the full camera frame rate. This halves the work and keeps video smooth on ordinary computers.
-          const segNow = studio || performance.now() - lastSeg > 62;
+          // With a picture behind you the cut-out must match every frame: a cut-out from an older frame lets the real
+          // room show around you when you move. Blur hides that, so it can run the cut-out less often.
+          const segNow = studio || (bgCanvas ? (!this.cpu || performance.now() - lastSeg > 40) : performance.now() - lastSeg > 62);
           if (segNow) { lastSeg = performance.now(); sctx.drawImage(video, 0, 0, sw, sh); }
           if (!studio && segNow) this.segmenter.segmentForVideo(small, performance.now(), (res) => {
             const ms = res.confidenceMasks;
@@ -1219,7 +1234,7 @@ vec3 f=mix(c,b,.14*(1.-a)*a*4.);gl_FragColor=vec4(mix(b,f,a),1.);}`;
             for (let i = 0; i < mask.length; i++) {
               const pers = this.multiclass ? 1 - bgConf[i] : bgConf[i];
               // Steady when still, quick to follow when moving.
-              const k = havePrev ? Math.min(.9, Math.max(.35, Math.abs(pers - prev[i]) * 2.2)) : 1;
+              const k = havePrev ? Math.min(.95, Math.max(bgCanvas ? .6 : .35, Math.abs(pers - prev[i]) * 2.2)) : 1;
               const v = prev[i] + (pers - prev[i]) * k;
               prev[i] = v;
               mask[i] = v * 255;
@@ -1978,13 +1993,31 @@ function renderBar() {
   const showingSpeaker = S.room && layout().stage === 'speaker';
   const ccLang = findLang(CC.prefs.show);
   const pop = (b, menu) => h('div', { class: 'lm-pop-wrap' }, b, menu);
-  const toggleOpen = (e) => { const w = e.currentTarget.closest('.lm-pop-wrap'); const was = w.classList.contains('open'); closePops(); if (!was) w.classList.add('open'); };
+  const toggleOpen = (e) => {
+    const w = e.currentTarget.closest('.lm-pop-wrap'); const was = w.classList.contains('open'); closePops();
+    if (was) return;
+    w.classList.add('open');
+    // The bar scrolls sideways when the window is narrow, so menus are placed over the button on the page itself.
+    const pop = w.querySelector('.lm-pop');
+    if (pop && window.innerWidth > 820) {
+      const r = w.getBoundingClientRect();
+      pop.style.left = Math.max(8, Math.min(window.innerWidth - 8, r.left + r.width / 2)) + 'px';
+      requestAnimationFrame(() => {
+        const pr = pop.getBoundingClientRect();
+        if (pr.right > window.innerWidth - 8) pop.style.left = (parseFloat(pop.style.left) - (pr.right - window.innerWidth + 8)) + 'px';
+        if (pr.left < 8) pop.style.left = (parseFloat(pop.style.left) + (8 - pr.left)) + 'px';
+      });
+    }
+  };
   const item = (ic, label, fn, cls) => h('button', { class: 'lm-menu-item ' + (cls || ''), onclick: () => { closePops(); fn(); } }, icon(ic), h('span', {}, label));
   const check = (ic, label, on, fn) => h('label', { class: 'lm-menu-item check' }, icon(ic), h('span', {}, label),
     h('input', { type: 'checkbox', checked: on, onchange: (e) => fn(e.target.checked) }), h('span', { class: 'sw' }));
   bar.replaceChildren(
     h('div', { class: 'lm-group' },
-      btn(S.micOn ? 'Mute' : 'Unmute', S.micOn ? 'mic' : 'micOff', () => toggleMic(), { cls: S.micOn ? '' : 'off', pressed: !S.micOn }),
+      h('div', { class: 'lm-split' },
+        btn(S.micOn ? 'Mute' : 'Unmute', S.micOn ? 'mic' : 'micOff', () => toggleMic(), { cls: S.micOn ? '' : 'off', pressed: !S.micOn }),
+        pop(h('button', { class: 'lm-split-lang', title: 'Microphone options', 'aria-label': 'Microphone options', onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
+          h('div', { class: 'lm-pop menu' }, check('mic', 'Noise suppression', S.noiseSuppression, setNoiseSuppression)))),
       btn(S.camOn ? 'Stop video' : 'Start video', S.camOn ? 'cam' : 'camOff', () => toggleCam(), { cls: S.camOn ? '' : 'off', disabled: !camAllowed() && !S.camOn, title: camAllowed() ? 'Camera' : 'Cameras are off in this room to save bandwidth' }),
       btn(S.screen ? 'Stop sharing' : 'Share', S.screen ? 'stop' : 'screen', toggleScreen, { cls: S.screen ? 'on' : '', disabled: !isMod() && !C.studentScreenShare && !pol().present })),
     h('div', { class: 'lm-group' },
@@ -2009,18 +2042,31 @@ function renderBar() {
           S.room && S.room.pres ? item('present', `Show “${S.room.pres.name}”`, () => send({ t: 'stage', mode: 'pres' })) : '',
           S.room && S.room.stage !== 'grid' ? item('grid', 'Back to video', () => send({ t: 'stage', mode: 'grid' })) : '')) : '',
       btn(showingSpeaker ? 'Gallery' : 'Speaker', showingSpeaker ? 'grid' : 'speaker', () => { S.view = showingSpeaker ? 'gallery' : 'speaker'; renderAll(); }, { title: showingSpeaker ? 'Gallery view' : 'Speaker view' })),
+    // Camera look: one tap each on wide screens; on small screens these are in "More" (see .lm-wide / .lm-narrow).
+    h('div', { class: 'lm-group lm-wide' },
+      btn('Blur', 'blur', () => setBackground(S.bg === 'blur' ? 'none' : 'blur'), { cls: S.bg === 'blur' ? 'on' : '', pressed: S.bg === 'blur', title: 'Blur your background' }),
+      btn('Background', 'image', () => Backgrounds.open(), { cls: S.bg && S.bg !== 'none' && S.bg !== 'blur' ? 'on' : '', title: S.bg && S.bg !== 'none' && S.bg !== 'blur' ? 'Background: ' + bgLabel() : 'Put a picture behind you' }),
+      btn('Smooth skin', 'sparkles', () => setSmooth(!S.smooth), { cls: S.smooth ? 'on' : '', pressed: !!S.smooth, title: 'A gentle touch-up of your camera' }),
+      btn('Studio look', 'sun', () => setLook(!S.look), { cls: S.look ? 'on' : '', pressed: !!S.look, title: 'Better lighting, and keeps you centred and framed' }),
+      btn('Data saver', 'feather', () => setDataSaver(!S.dataSaver), { cls: S.dataSaver ? 'on' : '', pressed: !!S.dataSaver, title: 'Hear everyone and see slides and screens, without camera video' })),
+    h('div', { class: 'lm-group lm-wide' },
+      btn('My name', 'pen', renameMe, { title: 'Change your name as others see it in this class' }),
+      isMod() ? btn(Recorder.active ? 'Stop rec' : 'Record', Recorder.active ? 'stop' : 'rec', () => Recorder.toggle(), { cls: Recorder.active ? 'rec on' : '', pressed: !!Recorder.active, title: Recorder.active ? 'Stop recording' : 'Start recording' }) : '',
+      isMod() ? btn('Breakouts', 'door', () => { S.tab = 'breakouts'; togglePanel(true); renderSide(); }, { cls: S.bo && S.bo.active ? 'on' : '', title: 'Breakout rooms' }) : ''),
     h('div', { class: 'lm-group' },
       btn('Chat', 'chat', () => togglePanel(), { badge: sideBadge || null, cls: panelOpen() ? 'on' : '', title: 'Chat, people, notes and more' }),
-      pop(btn('More', 'more', toggleOpen),
+      isMod() ? h('span', { class: 'lm-wide' }, btn('End', 'x', () => { if (window.confirm('End the meeting for everyone?')) send({ t: 'end' }); }, { cls: 'leave', title: 'End the meeting for everyone' })) : '',
+      h('span', { class: 'lm-narrow' }, pop(btn('More', 'more', toggleOpen),
         h('div', { class: 'lm-pop menu up-right' },
+          check('blur', 'Blur background', S.bg === 'blur', (on) => setBackground(on ? 'blur' : 'none')),
+          item('image', S.bg && S.bg !== 'none' && S.bg !== 'blur' ? 'Background: ' + bgLabel() : 'Background picture', () => Backgrounds.open()),
+          check('sparkles', 'Smooth skin', S.smooth, setSmooth),
+          check('sun', 'Studio look', S.look, setLook),
           check('feather', 'Data saver', S.dataSaver, setDataSaver),
           item('pen', 'Change my name', renameMe),
-          check('sun', 'Studio look', S.look, setLook),
-          check('sparkles', 'Smooth skin', S.smooth, setSmooth),
-          item('blur', S.bg && S.bg !== 'none' ? 'Background: ' + bgLabel() : 'Background', () => Backgrounds.open()),
-          check('mic', 'Noise suppression', S.noiseSuppression, setNoiseSuppression),
           isMod() ? item(Recorder.active ? 'stop' : 'rec', Recorder.active ? 'Stop recording' : 'Start recording', () => Recorder.toggle(), Recorder.active ? 'danger' : '') : '',
-          isMod() ? item('x', 'End meeting for everyone', () => { if (window.confirm('End the meeting for everyone?')) send({ t: 'end' }); }, 'danger') : '')),
+          isMod() ? item('door', 'Breakout rooms', () => { S.tab = 'breakouts'; togglePanel(true); renderSide(); }) : '',
+          isMod() ? item('x', 'End meeting for everyone', () => { if (window.confirm('End the meeting for everyone?')) send({ t: 'end' }); }, 'danger') : ''))),
       btn('Leave', 'leave', leave, { cls: 'leave' })),
   );
 }

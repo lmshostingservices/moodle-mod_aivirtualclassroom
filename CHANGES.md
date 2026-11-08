@@ -1,5 +1,10 @@
 # Changes
 
+## 1.1.2 (2026112300)
+- Studio look is no longer a close-up: it frames you head-and-shoulders (about 5–20% zoom instead of up to 45%), and less again when a background is on. It only re-frames when you really move, and moves slowly, so the picture stops drifting.
+- The bottom bar now has one-tap buttons for everything that was under the three dots: Blur, Background (pictures), Smooth skin, Studio look, Data saver, My name, and for teachers Record, Breakouts and End (end the meeting for everyone). Noise suppression is in the small arrow next to Mute. On smaller screens (under about 1180 px wide, tablets and phones) these fold back into a "More" menu so the bar stays tidy. The bar tightens on laptop screens so Leave is always visible.
+- Cleaner cut-out in front of a background picture: the cut-out now runs on every camera frame (it used to run 15 times a second, so the real room showed around you when you moved), the edge is a little tighter, and the picture's colour and light are blended into your outline so you sit in the scene. Blur is unchanged.
+
 ## 1.1.1 (2026112200)
 - Captions no longer mix up words between people. Fixes:
   - Only one recogniser writes the words: the accurate server one. The browser now only shows a "…" (someone is speaking) while the sentence is being recognised, instead of its own rougher words that were then replaced.
