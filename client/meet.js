@@ -1183,11 +1183,19 @@ mI+=I;mp+=q;mIp+=I*q;mII+=I*I;n+=1.;}}
 mI/=n;mp/=n;mIp/=n;mII/=n;vec3 cov=mIp-mI*mp;vec3 vr=mII-mI*mI;vec3 a=clamp(cov/(vr+.0015)/3.,-6.,6.);
 vec3 I0=texture2D(vid,uv).rgb;float r=clamp(mp+dot(a,I0-mI),0.,1.);
 gl_FragColor=vec4(r,r,r,1.);}`;
-      const fs = `precision mediump float;varying vec2 uv;uniform sampler2D vid,alp,bg;uniform vec2 bpx;uniform float bb;
+      // Edge colour clean-up: on the half-transparent edge the camera pixel is part you, part real room (a dark wall
+      // behind a white shirt shows as a dotted dark line). There, take the colour from the nearest pixel that is
+      // clearly you. Only the colour changes; the cut-out shape stays exactly the same.
+      const fs = `precision mediump float;varying vec2 uv;uniform sampler2D vid,alp,bg;uniform vec2 bpx,vpx;uniform float bb;
 vec3 bgAt(vec2 p){if(bb<.5)return texture2D(bg,p).rgb;vec3 s=vec3(0.);
 for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){s+=texture2D(bg,p+vec2(float(i),float(j))*bpx*.9).rgb;}}return s/25.;}
-void main(){vec3 c=texture2D(vid,uv).rgb;float a=smoothstep(.30,.70,texture2D(alp,vec2(uv.x,1.-uv.y)).r);vec3 b=bgAt(uv);
-vec3 f=mix(c,b,.14*(1.-a)*a*4.);gl_FragColor=vec4(mix(b,f,a),1.);}`;
+float al(vec2 p){return texture2D(alp,vec2(p.x,1.-p.y)).r;}
+void main(){vec3 c=texture2D(vid,uv).rgb;float r=al(uv);float a=smoothstep(.30,.70,r);vec3 b=bgAt(uv);
+float e=(1.-a)*a*4.;
+if(e>.02){vec3 fg=c;float best=r;
+for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){vec2 o=uv+vec2(float(i),float(j))*vpx*1.6;float k=al(o);if(k>best){best=k;fg=texture2D(vid,o).rgb;}}}
+c=mix(c,fg,clamp(e*1.6,0.,1.));}
+vec3 f=mix(c,b,.14*e);gl_FragColor=vec4(mix(b,f,a),1.);}`;
       const sh_ = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; };
       const prog = (f) => { const p = gl.createProgram(); gl.attachShader(p, sh_(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh_(gl.FRAGMENT_SHADER, f)); gl.linkProgram(p); return p; };
       const pG = prog(fsGuide);
@@ -1224,6 +1232,7 @@ vec3 f=mix(c,b,.14*(1.-a)*a*4.);gl_FragColor=vec4(mix(b,f,a),1.);}`;
       gl.uniform1i(gl.getUniformLocation(pr, 'alp'), 3);
       gl.uniform1f(gl.getUniformLocation(pr, 'bb'), bgCanvas ? 0 : 1);
       gl.uniform2f(gl.getUniformLocation(pr, 'bpx'), 1 / 64, 1 / Math.max(16, Math.round(64 * hh / w)));
+      gl.uniform2f(gl.getUniformLocation(pr, 'vpx'), 1 / w, 1 / hh);
       if (bgCanvas) {
         gl.activeTexture(gl.TEXTURE2);
         gl.bindTexture(gl.TEXTURE_2D, tBg);

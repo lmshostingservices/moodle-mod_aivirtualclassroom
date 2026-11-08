@@ -1,5 +1,8 @@
 # Changes
 
+## 1.1.5 (2026112600)
+- No more dotted dark line around you with a background picture or blur. On the soft edge of the cut-out the camera pixel is partly the real room behind you; the colour there is now taken from the nearest pixel that is clearly you. The cut-out shape itself is unchanged (ears stay).
+
 ## 1.1.4 (2026112500)
 - Same features as 1.1.3. Code tidied to pass the Moodle Code Checker (0 errors) and the PHPDoc checker (0 problems): formatting fixes across the PHP files and full parameter docs for meet::join_token.
 
