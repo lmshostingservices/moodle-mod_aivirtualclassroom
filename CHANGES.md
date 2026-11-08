@@ -1,5 +1,8 @@
 # Changes
 
+## 1.1.4 (2026112500)
+- Same features as 1.1.3. Code tidied to pass the Moodle Code Checker (0 errors) and the PHPDoc checker (0 problems): formatting fixes across the PHP files and full parameter docs for meet::join_token.
+
 ## 1.1.3 (2026112400)
 - Background cut-out is back to the 1.1.1 settings (the 1.1.2 edge changes clipped ears).
 - Studio look now does much more, still in one light graphics pass with no cut-out model: a portrait-lens look (the room around you goes softer, a little darker and calmer), a soft key light that follows your face, a touch of sharpening on you, auto exposure, white balance and a gentle film-style tone curve. When a background effect is on, the lens softening is left out so the cut-out edge stays clean.

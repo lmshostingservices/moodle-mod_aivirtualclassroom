@@ -96,14 +96,18 @@ echo html_writer::table($summary);
 
 // Bulk actions.
 $btn = function ($action, $label, $class = 'btn-secondary') use ($url) {
-    return html_writer::link(new moodle_url($url, ['action' => $action, 'sesskey' => sesskey()]), $label,
-        ['class' => "btn $class mr-2 me-2 mb-2"]);
+    return html_writer::link(
+        new moodle_url($url, ['action' => $action, 'sesskey' => sesskey()]),
+        $label,
+        ['class' => "btn $class mr-2 me-2 mb-2"]
+    );
 };
 echo html_writer::div(
     $btn('auto', get_string('autoassign', 'mod_aivirtualclassroom'), 'btn-primary') .
     $btn('rebalance', get_string('rebalance', 'mod_aivirtualclassroom')) .
     $btn('clear', get_string('clearassignments', 'mod_aivirtualclassroom'), 'btn-outline-danger'),
-    'mb-3');
+    'mb-3'
+);
 
 // Manual assignment form.
 $options = [0 => get_string('mainroomunassigned', 'mod_aivirtualclassroom')];
@@ -127,8 +131,11 @@ foreach ($students as $s) {
 }
 echo html_writer::table($table);
 echo html_writer::empty_tag('input', ['type' => 'submit', 'value' => get_string('savechanges'), 'class' => 'btn btn-primary']);
-echo ' ' . html_writer::link(new moodle_url('/mod/aivirtualclassroom/view.php', ['id' => $cm->id]), get_string('back'),
-    ['class' => 'btn btn-link']);
+echo ' ' . html_writer::link(
+    new moodle_url('/mod/aivirtualclassroom/view.php', ['id' => $cm->id]),
+    get_string('back'),
+    ['class' => 'btn btn-link']
+);
 echo html_writer::end_tag('form');
 
 echo $OUTPUT->footer();

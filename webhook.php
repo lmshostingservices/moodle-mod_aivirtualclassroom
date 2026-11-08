@@ -44,8 +44,10 @@ if (!meet::is_configured() || $body === '' || !hash_equals(meet::sign($body), (s
 }
 
 $data = json_decode($body, true);
-if (!is_array($data) || ($data['site'] ?? '') !== meet::config()->siteid || empty($data['cmid']) ||
-        !isset($data['events']) || !is_array($data['events'])) {
+if (
+    !is_array($data) || ($data['site'] ?? '') !== meet::config()->siteid || empty($data['cmid']) ||
+        !isset($data['events']) || !is_array($data['events'])
+) {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'bad payload']);
     die;

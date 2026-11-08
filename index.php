@@ -41,8 +41,11 @@ echo $OUTPUT->heading(get_string('modulenameplural', 'mod_aivirtualclassroom'));
 $table = new html_table();
 $table->head = [get_string('name'), get_string('timeopen', 'mod_aivirtualclassroom')];
 foreach (get_all_instances_in_course('aivirtualclassroom', $course) as $m) {
-    $link = html_writer::link(new moodle_url('/mod/aivirtualclassroom/view.php', ['id' => $m->coursemodule]), format_string($m->name),
-        $m->visible ? [] : ['class' => 'dimmed']);
+    $link = html_writer::link(
+        new moodle_url('/mod/aivirtualclassroom/view.php', ['id' => $m->coursemodule]),
+        format_string($m->name),
+        $m->visible ? [] : ['class' => 'dimmed']
+    );
     $table->data[] = [$link, $m->timeopen ? userdate($m->timeopen) : '-'];
 }
 echo html_writer::table($table);

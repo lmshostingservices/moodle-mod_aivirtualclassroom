@@ -40,8 +40,10 @@ $name = trim(optional_param('name', '', PARAM_TEXT));
 $cm = get_coursemodule_from_id('aivirtualclassroom', $id, 0, false, MUST_EXIST);
 $aivirtualclassroom = $DB->get_record('aivirtualclassroom', ['id' => $cm->instance], '*', MUST_EXIST);
 $context = context_module::instance($cm->id);
-if (!$cm->visible || empty($aivirtualclassroom->guestaccess) || empty($aivirtualclassroom->guestkey) || !hash_equals($aivirtualclassroom->guestkey, $key) ||
-        !meet::is_configured()) {
+if (
+    !$cm->visible || empty($aivirtualclassroom->guestaccess) || empty($aivirtualclassroom->guestkey) || !hash_equals($aivirtualclassroom->guestkey, $key) ||
+        !meet::is_configured()
+) {
     throw new moodle_exception('guestlinkinvalid', 'mod_aivirtualclassroom');
 }
 
@@ -56,8 +58,17 @@ if ($name !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         get_string('guest') . ')'];
     $config = [
         'worker' => meet::worker_url(),
-        'token' => meet::join_token($cm, $context, $guest, '', $aivirtualclassroom->videopolicy, 'guest', (int)$aivirtualclassroom->waitingroom >= 1,
-            (string)$aivirtualclassroom->keyterms, format_string(get_course($cm->course)->fullname)),
+        'token' => meet::join_token(
+            $cm,
+            $context,
+            $guest,
+            '',
+            $aivirtualclassroom->videopolicy,
+            'guest',
+            (int)$aivirtualclassroom->waitingroom >= 1,
+            (string)$aivirtualclassroom->keyterms,
+            format_string(get_course($cm->course)->fullname)
+        ),
         'videoPolicy' => $aivirtualclassroom->videopolicy,
         'myNotes' => '',
         'notesUrl' => null,

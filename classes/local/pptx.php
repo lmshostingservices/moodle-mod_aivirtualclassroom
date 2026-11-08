@@ -148,8 +148,13 @@ class pptx {
         ], ['CURLOPT_TIMEOUT' => 240, 'CURLOPT_CONNECTTIMEOUT' => 10]);
         $j = json_decode((string)$res, true);
         if (!is_array($j) || empty($j['success']) || empty($j['slides'])) {
-            throw new \moodle_exception('pptx_failed', 'mod_aivirtualclassroom', '', null,
-                is_array($j) && !empty($j['error']) ? (string)$j['error'] : 'no response');
+            throw new \moodle_exception(
+                'pptx_failed',
+                'mod_aivirtualclassroom',
+                '',
+                null,
+                is_array($j) && !empty($j['error']) ? (string)$j['error'] : 'no response'
+            );
         }
         $images = [];
         foreach ($j['slides'] as $s) {

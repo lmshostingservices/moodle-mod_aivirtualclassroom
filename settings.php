@@ -69,15 +69,30 @@ if ($ADMIN->fulltree) {
             $html .= $box('warn', get_string('notconnected', 'mod_aivirtualclassroom') . ($reason !== '' ? ' ' . $reason : ''));
         }
     }
-    $settings->add(new admin_setting_heading('mod_aivirtualclassroom/connection', get_string('settings_connection', 'mod_aivirtualclassroom'),
-        $html . get_string('settings_central', 'mod_aivirtualclassroom', $central)));
+    $settings->add(new admin_setting_heading(
+        'mod_aivirtualclassroom/connection',
+        get_string('settings_connection', 'mod_aivirtualclassroom'),
+        $html . get_string('settings_central', 'mod_aivirtualclassroom', $central)
+    ));
     if (!$centralinstalled) {
-        $settings->add(new admin_setting_configtext('mod_aivirtualclassroom/siteid',
-            get_string('settings_siteid', 'mod_aivirtualclassroom'), get_string('settings_siteid_desc', 'mod_aivirtualclassroom'), '', PARAM_RAW_TRIMMED)); // pipeline-ignore: PARAM_RAW_TRIMMED admin-only opaque LMS Labs site id, never output as HTML.
-        $settings->add(new admin_setting_configpasswordunmask('mod_aivirtualclassroom/apikey',
-            get_string('settings_apikey', 'mod_aivirtualclassroom'), get_string('settings_apikey_desc', 'mod_aivirtualclassroom'), ''));
+        $settings->add(new admin_setting_configtext(
+            'mod_aivirtualclassroom/siteid',
+            get_string('settings_siteid', 'mod_aivirtualclassroom'),
+            get_string('settings_siteid_desc', 'mod_aivirtualclassroom'),
+            '',
+            PARAM_TEXT
+        ));
+        $settings->add(new admin_setting_configpasswordunmask(
+            'mod_aivirtualclassroom/apikey',
+            get_string('settings_apikey', 'mod_aivirtualclassroom'),
+            get_string('settings_apikey_desc', 'mod_aivirtualclassroom'),
+            ''
+        ));
     }
-    $settings->add(new admin_setting_configcheckbox('mod_aivirtualclassroom/studentscreenshare',
+    $settings->add(new admin_setting_configcheckbox(
+        'mod_aivirtualclassroom/studentscreenshare',
         get_string('settings_studentscreenshare', 'mod_aivirtualclassroom'),
-        get_string('settings_studentscreenshare_desc', 'mod_aivirtualclassroom'), 0));
+        get_string('settings_studentscreenshare_desc', 'mod_aivirtualclassroom'),
+        0
+    ));
 }

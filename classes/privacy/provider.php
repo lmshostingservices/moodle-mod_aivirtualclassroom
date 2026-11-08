@@ -31,11 +31,7 @@ use core_privacy\local\request\writer;
  * @copyright  2026 LMS Hosting Services
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider implements
-        \core_privacy\local\metadata\provider,
-        \core_privacy\local\request\plugin\provider,
-        \core_privacy\local\request\core_userlist_provider {
-
+class provider implements \core_privacy\local\metadata\provider, \core_privacy\local\request\core_userlist_provider, \core_privacy\local\request\plugin\provider {
     /** @var array Tables keyed by user field. */
     const TABLES = [
         'aivirtualclassroom_att' => 'userid',
@@ -116,12 +112,14 @@ class provider implements
         $list = new contextlist();
         $list->add_from_sql($sql, $params);
         // The class picture lives in the person's own user context.
-        $list->add_from_sql("SELECT DISTINCT ctx.id
+        $list->add_from_sql(
+            "SELECT DISTINCT ctx.id
                                FROM {context} ctx
                                JOIN {files} f ON f.contextid = ctx.id
                               WHERE ctx.contextlevel = :ulevel AND ctx.instanceid = :uid
                                 AND f.component = :comp AND f.filearea = :area",
-            ['ulevel' => CONTEXT_USER, 'uid' => $userid, 'comp' => 'mod_aivirtualclassroom', 'area' => 'avatar']);
+            ['ulevel' => CONTEXT_USER, 'uid' => $userid, 'comp' => 'mod_aivirtualclassroom', 'area' => 'avatar']
+        );
         return $list;
     }
 
@@ -148,8 +146,11 @@ class provider implements
         foreach (self::TABLES as $table => $field) {
             $userlist->add_from_sql($field, "SELECT {$field} FROM {{$table}} WHERE aivirtualclassroomid = :id", ['id' => $cm->instance]);
         }
-        $userlist->add_from_sql('teacherid', "SELECT teacherid FROM {aivirtualclassroom_bo} WHERE aivirtualclassroomid = :id",
-            ['id' => $cm->instance]);
+        $userlist->add_from_sql(
+            'teacherid',
+            "SELECT teacherid FROM {aivirtualclassroom_bo} WHERE aivirtualclassroomid = :id",
+            ['id' => $cm->instance]
+        );
     }
 
     /**
@@ -162,8 +163,12 @@ class provider implements
         $userid = $contextlist->get_user()->id;
         foreach ($contextlist->get_contexts() as $context) {
             if ($context instanceof \context_user && (int)$context->instanceid === (int)$userid) {
-                writer::with_context($context)->export_area_files([get_string('pluginname', 'mod_aivirtualclassroom')],
-                    'mod_aivirtualclassroom', 'avatar', 0);
+                writer::with_context($context)->export_area_files(
+                    [get_string('pluginname', 'mod_aivirtualclassroom')],
+                    'mod_aivirtualclassroom',
+                    'avatar',
+                    0
+                );
                 continue;
             }
             if (!$context instanceof \context_module) {

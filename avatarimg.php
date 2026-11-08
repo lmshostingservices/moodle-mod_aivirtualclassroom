@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
 /**
  * Serves a class picture. Links are signed, so pictures show to the class and to guests without a login.
  *

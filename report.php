@@ -45,8 +45,10 @@ $PAGE->set_heading(format_string($course->fullname));
 $att = $DB->get_records_sql('SELECT userid, SUM(seconds) AS secs, COUNT(1) AS sessions, SUM(bytesrx) AS rx, MIN(timejoined) AS firstjoin,
                                     MAX(timeleft) AS lastleft
                                FROM {aivirtualclassroom_att} WHERE aivirtualclassroomid = ? GROUP BY userid', [$aivirtualclassroom->id]);
-$hands = $DB->get_records_sql_menu('SELECT userid, COUNT(1) FROM {aivirtualclassroom_hand} WHERE aivirtualclassroomid = ? GROUP BY userid',
-    [$aivirtualclassroom->id]);
+$hands = $DB->get_records_sql_menu(
+    'SELECT userid, COUNT(1) FROM {aivirtualclassroom_hand} WHERE aivirtualclassroomid = ? GROUP BY userid',
+    [$aivirtualclassroom->id]
+);
 $completion = new completion_info($course);
 $tracking = $completion->is_enabled($cm) == COMPLETION_TRACKING_AUTOMATIC;
 
@@ -74,7 +76,10 @@ foreach ($users as $u) {
     ];
 }
 $head = [get_string('fullname'), get_string('minutesattended', 'mod_aivirtualclassroom'), get_string('connections', 'mod_aivirtualclassroom'),
-    get_string('handraises', 'mod_aivirtualclassroom'), get_string('datareceived', 'mod_aivirtualclassroom'), get_string('firstjoined', 'mod_aivirtualclassroom'), get_string('lastleft', 'mod_aivirtualclassroom'),
+    get_string('handraises', 'mod_aivirtualclassroom'),
+    get_string('datareceived', 'mod_aivirtualclassroom'),
+    get_string('firstjoined', 'mod_aivirtualclassroom'),
+    get_string('lastleft', 'mod_aivirtualclassroom'),
     get_string('completion', 'completion')];
 
 if ($download) {
@@ -103,8 +108,12 @@ if ($rules) {
 }
 $trainerids = array_map('intval', array_keys(\mod_aivirtualclassroom\local\meet::teachers($aivirtualclassroom, $context, false)));
 $learnersecs = 0;
-foreach ($DB->get_records_sql('SELECT userid, SUM(seconds) AS secs FROM {aivirtualclassroom_att} WHERE aivirtualclassroomid = ? GROUP BY userid',
-        [$aivirtualclassroom->id]) as $r) {
+foreach (
+    $DB->get_records_sql(
+        'SELECT userid, SUM(seconds) AS secs FROM {aivirtualclassroom_att} WHERE aivirtualclassroomid = ? GROUP BY userid',
+        [$aivirtualclassroom->id]
+    ) as $r
+) {
     if (!in_array((int)$r->userid, $trainerids, true)) {
         $learnersecs += (int)$r->secs;
     }
@@ -113,8 +122,11 @@ echo html_writer::tag('p', get_string('learnersummary', 'mod_aivirtualclassroom'
     'hours' => format_float($learnersecs / 3600, 1),
     'credits' => format_float($learnersecs / 10800, 1),
 ]), ['class' => 'alert alert-info']);
-echo html_writer::div(html_writer::link(new moodle_url($url, ['download' => 1]), get_string('downloadcsv', 'mod_aivirtualclassroom'),
-    ['class' => 'btn btn-secondary']), 'mb-3');
+echo html_writer::div(html_writer::link(
+    new moodle_url($url, ['download' => 1]),
+    get_string('downloadcsv', 'mod_aivirtualclassroom'),
+    ['class' => 'btn btn-secondary']
+), 'mb-3');
 $table = new html_table();
 $table->head = $head;
 $table->data = $rows;

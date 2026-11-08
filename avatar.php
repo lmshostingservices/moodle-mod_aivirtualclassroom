@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
 /**
  * Save or remove the class picture a person chose in the waiting room. Returns the new picture link and a fresh
  * join token that carries it, so everyone in the class sees it.
@@ -48,7 +49,7 @@ $fs = get_file_storage();
 if (optional_param('remove', 0, PARAM_BOOL)) {
     $fs->delete_area_files($usercontext->id, 'mod_aivirtualclassroom', 'avatar');
 } else {
-    $data = (string)optional_param('data', '', PARAM_RAW); // pipeline-ignore: PARAM_RAW base64 image data URL, decoded and redrawn by GD below.
+    $data = (string)optional_param('data', '', PARAM_RAW); // Pipeline-ignore: PARAM_RAW base64 image data URL, decoded and redrawn by GD below.
     if (!preg_match('~^data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$~', $data, $m)) {
         $out(['error' => get_string('avatar_bad', 'mod_aivirtualclassroom')], 400);
     }
@@ -86,6 +87,15 @@ if (!$picurl) {
     $picurl = $pic->get_url($PAGE)->out(false);
 }
 $ismod = has_capability('mod/aivirtualclassroom:moderate', $context);
-$token = meet::join_token($cm, $context, $USER, $picurl, $aivirtualclassroom->videopolicy, null,
-    !$ismod && (int)$aivirtualclassroom->waitingroom === 2, (string)$aivirtualclassroom->keyterms, format_string($course->fullname));
+$token = meet::join_token(
+    $cm,
+    $context,
+    $USER,
+    $picurl,
+    $aivirtualclassroom->videopolicy,
+    null,
+    !$ismod && (int)$aivirtualclassroom->waitingroom === 2,
+    (string)$aivirtualclassroom->keyterms,
+    format_string($course->fullname)
+);
 $out(['pic' => $picurl, 'token' => $token, 'custom' => !optional_param('remove', 0, PARAM_BOOL)]);

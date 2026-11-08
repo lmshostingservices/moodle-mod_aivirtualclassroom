@@ -178,4 +178,3 @@ $string['yourname'] = 'Your name';
 $string['yourprogress'] = 'You have attended {$a->minutes} minutes and raised your hand {$a->hands} times.';
 $string['avatar_bad'] = 'That picture could not be used. Try a JPG or PNG photo.';
 $string['privacy:metadata:core_files'] = 'The class picture a person chooses in the waiting room is kept in their own files and shown to others in their classes.';
-

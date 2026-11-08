@@ -53,5 +53,6 @@ echo html_writer::tag('video', '', [
 echo html_writer::div(
     html_writer::link(meet::playback_url($rec->storagekey, true), get_string('download'), ['class' => 'btn btn-secondary mr-2 me-2']) .
     html_writer::link(new moodle_url('/mod/aivirtualclassroom/view.php', ['id' => $cm->id]), get_string('back'), ['class' => 'btn btn-link']),
-    'mt-3');
+    'mt-3'
+);
 echo $OUTPUT->footer();

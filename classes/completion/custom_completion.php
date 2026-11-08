@@ -36,8 +36,12 @@ class custom_completion extends activity_custom_completion {
     public function get_state(string $rule): int {
         global $DB;
         $this->validate_rule($rule);
-        $aivirtualclassroom = $DB->get_record('aivirtualclassroom', ['id' => $this->cm->instance], 'id, completionattendance, completionhandraises',
-            MUST_EXIST);
+        $aivirtualclassroom = $DB->get_record(
+            'aivirtualclassroom',
+            ['id' => $this->cm->instance],
+            'id, completionattendance, completionhandraises',
+            MUST_EXIST
+        );
         if ($rule === 'completionattendance') {
             $done = meet::seconds_attended($aivirtualclassroom->id, $this->userid) >= $aivirtualclassroom->completionattendance * 60;
         } else {

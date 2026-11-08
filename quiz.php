@@ -55,7 +55,7 @@ core\session\manager::write_close();
 $types = array_values(array_intersect((array)($in['types'] ?? []), ['mcq', 'truefalse', 'matching', 'categorysort', 'ordering', 'tapcard']));
 $body = [
     'title' => core_text::substr(clean_param((string)($in['title'] ?? 'Quiz'), PARAM_TEXT), 0, 200),
-    'text' => core_text::substr(clean_param((string)($in['text'] ?? ''), PARAM_RAW_TRIMMED), 0, 60000), // pipeline-ignore: PARAM_RAW_TRIMMED pasted source text, only sent to the AI and never echoed as HTML.
+    'text' => core_text::substr(clean_param((string)($in['text'] ?? ''), PARAM_RAW_TRIMMED), 0, 60000), // Pipeline-ignore: PARAM_RAW_TRIMMED sent to the AI only.
     'count' => max(1, min(20, (int)($in['count'] ?? 5))),
     'types' => $types ?: ['mcq'],
     'voice' => !empty($in['voice']),

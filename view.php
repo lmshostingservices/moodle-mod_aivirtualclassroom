@@ -53,8 +53,11 @@ if ($deleterec && $canmoderate) {
         redirect($url, get_string('recordingdeleted', 'mod_aivirtualclassroom'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
     echo $OUTPUT->header();
-    echo $OUTPUT->confirm(get_string('confirmdeleterecording', 'mod_aivirtualclassroom', userdate($rec->timecreated)),
-        new moodle_url($url, ['deleterec' => $rec->id, 'confirm' => 1, 'sesskey' => sesskey()]), $url);
+    echo $OUTPUT->confirm(
+        get_string('confirmdeleterecording', 'mod_aivirtualclassroom', userdate($rec->timecreated)),
+        new moodle_url($url, ['deleterec' => $rec->id, 'confirm' => 1, 'sesskey' => sesskey()]),
+        $url
+    );
     echo $OUTPUT->footer();
     exit;
 }
@@ -69,8 +72,10 @@ $completion->set_module_viewed($cm);
 echo $OUTPUT->header();
 
 if (!meet::is_configured()) {
-    echo $OUTPUT->notification(get_string(\mod_aivirtualclassroom\local\meet::has_credentials() ? 'waitingforlmslabs' : 'notconfigured',
-        'mod_aivirtualclassroom'), 'warning');
+    echo $OUTPUT->notification(get_string(
+        \mod_aivirtualclassroom\local\meet::has_credentials() ? 'waitingforlmslabs' : 'notconfigured',
+        'mod_aivirtualclassroom'
+    ), 'warning');
 }
 
 // Schedule.
@@ -93,7 +98,8 @@ if (has_capability('mod/aivirtualclassroom:join', $context) && meet::is_configur
         $joinurl = new moodle_url('/mod/aivirtualclassroom/room.php', ['id' => $cm->id]);
         echo html_writer::div(
             html_writer::link($joinurl, get_string('join', 'mod_aivirtualclassroom'), ['class' => 'btn btn-primary btn-lg']),
-            'mb-4 mt-2');
+            'mb-4 mt-2'
+        );
     }
 }
 
@@ -107,11 +113,17 @@ if ($canmoderate && $aivirtualclassroom->guestaccess && $aivirtualclassroom->gue
         html_writer::div(
             html_writer::empty_tag('input', ['type' => 'text', 'readonly' => 'readonly', 'id' => 'aivirtualclassroom-guestlink',
                 'value' => $guesturl, 'class' => 'form-control', 'onclick' => 'this.select()']) .
-            html_writer::tag('button', $OUTPUT->pix_icon('t/copy', '') . ' ' . html_writer::span($copy),
+            html_writer::tag(
+                'button',
+                $OUTPUT->pix_icon('t/copy', '') . ' ' . html_writer::span($copy),
                 ['type' => 'button', 'class' => 'btn btn-primary', 'id' => 'aivirtualclassroom-copyguest', 'title' => $copy,
-                 'aria-label' => $copy]),
-            'input-group'),
-        'mb-3', ['style' => 'max-width:720px']);
+                'aria-label' => $copy]
+            ),
+            'input-group'
+        ),
+        'mb-3',
+        ['style' => 'max-width:720px']
+    );
     $PAGE->requires->js_amd_inline("
         (function () {
             var b = document.getElementById('aivirtualclassroom-copyguest');
@@ -144,8 +156,15 @@ if (!$canmoderate && ($aivirtualclassroom->completionattendance || $aivirtualcla
 }
 
 // AI class summaries (written at the end of each class from the captions).
-$summaries = $DB->get_records_select('aivirtualclassroom_snote', "aivirtualclassroomid = ? AND " . $DB->sql_like('roomkey', '?'),
-    [$aivirtualclassroom->id, 'sum-%'], 'session DESC, roomkey ASC', '*', 0, 3);
+$summaries = $DB->get_records_select(
+    'aivirtualclassroom_snote',
+    "aivirtualclassroomid = ? AND " . $DB->sql_like('roomkey', '?'),
+    [$aivirtualclassroom->id, 'sum-%'],
+    'session DESC, roomkey ASC',
+    '*',
+    0,
+    3
+);
 if ($summaries) {
     $out = html_writer::tag('h3', get_string('aisummary', 'mod_aivirtualclassroom'), ['class' => 'h5']);
     foreach ($summaries as $s) {
@@ -160,18 +179,30 @@ if ($summaries) {
 // Teacher tools.
 $links = [];
 if (has_capability('mod/aivirtualclassroom:managebreakouts', $context)) {
-    $links[] = html_writer::link(new moodle_url('/mod/aivirtualclassroom/breakouts.php', ['id' => $cm->id]),
-        get_string('managebreakouts', 'mod_aivirtualclassroom'), ['class' => 'btn btn-secondary mr-2 me-2']);
+    $links[] = html_writer::link(
+        new moodle_url('/mod/aivirtualclassroom/breakouts.php', ['id' => $cm->id]),
+        get_string('managebreakouts', 'mod_aivirtualclassroom'),
+        ['class' => 'btn btn-secondary mr-2 me-2']
+    );
 }
-$links[] = html_writer::link(new moodle_url('/mod/aivirtualclassroom/export.php', ['id' => $cm->id, 'type' => 'mine']),
-    get_string('exportmynotes', 'mod_aivirtualclassroom'), ['class' => 'btn btn-outline-secondary mr-2 me-2']);
+$links[] = html_writer::link(
+    new moodle_url('/mod/aivirtualclassroom/export.php', ['id' => $cm->id, 'type' => 'mine']),
+    get_string('exportmynotes', 'mod_aivirtualclassroom'),
+    ['class' => 'btn btn-outline-secondary mr-2 me-2']
+);
 if ($DB->record_exists('aivirtualclassroom_snote', ['aivirtualclassroomid' => $aivirtualclassroom->id])) {
-    $links[] = html_writer::link(new moodle_url('/mod/aivirtualclassroom/export.php', ['id' => $cm->id, 'type' => 'shared']),
-        get_string('exportsharednotes', 'mod_aivirtualclassroom'), ['class' => 'btn btn-outline-secondary mr-2 me-2']);
+    $links[] = html_writer::link(
+        new moodle_url('/mod/aivirtualclassroom/export.php', ['id' => $cm->id, 'type' => 'shared']),
+        get_string('exportsharednotes', 'mod_aivirtualclassroom'),
+        ['class' => 'btn btn-outline-secondary mr-2 me-2']
+    );
 }
 if (has_capability('mod/aivirtualclassroom:viewreport', $context)) {
-    $links[] = html_writer::link(new moodle_url('/mod/aivirtualclassroom/report.php', ['id' => $cm->id]),
-        get_string('attendancereport', 'mod_aivirtualclassroom'), ['class' => 'btn btn-secondary']);
+    $links[] = html_writer::link(
+        new moodle_url('/mod/aivirtualclassroom/report.php', ['id' => $cm->id]),
+        get_string('attendancereport', 'mod_aivirtualclassroom'),
+        ['class' => 'btn btn-secondary']
+    );
 }
 if ($links) {
     echo html_writer::div(implode('', $links), 'mb-4');
@@ -186,11 +217,17 @@ if (!$recs) {
     $table = new html_table();
     $table->head = [get_string('date'), get_string('recordinglength', 'mod_aivirtualclassroom'), get_string('size'), ''];
     foreach ($recs as $rec) {
-        $actions = html_writer::link(new moodle_url('/mod/aivirtualclassroom/play.php', ['id' => $cm->id, 'r' => $rec->id]),
-            get_string('watchrecording', 'mod_aivirtualclassroom'), ['class' => 'btn btn-sm btn-outline-primary']);
+        $actions = html_writer::link(
+            new moodle_url('/mod/aivirtualclassroom/play.php', ['id' => $cm->id, 'r' => $rec->id]),
+            get_string('watchrecording', 'mod_aivirtualclassroom'),
+            ['class' => 'btn btn-sm btn-outline-primary']
+        );
         if ($canmoderate) {
-            $actions .= ' ' . html_writer::link(new moodle_url($url, ['deleterec' => $rec->id]), get_string('delete'),
-                ['class' => 'btn btn-sm btn-outline-danger']);
+            $actions .= ' ' . html_writer::link(
+                new moodle_url($url, ['deleterec' => $rec->id]),
+                get_string('delete'),
+                ['class' => 'btn btn-sm btn-outline-danger']
+            );
         }
         $table->data[] = [userdate($rec->timestarted ?: $rec->timecreated), format_time($rec->seconds),
             display_size($rec->bytes), $actions];

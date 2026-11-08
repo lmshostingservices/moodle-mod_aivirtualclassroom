@@ -55,8 +55,17 @@ $guesturl = ($ismod && $aivirtualclassroom->guestaccess) ? meet::guest_url($cm->
 
 $config = [
     'worker' => meet::worker_url(),
-    'token' => meet::join_token($cm, $context, $USER, $picurl, $aivirtualclassroom->videopolicy, null,
-        !$ismod && (int)$aivirtualclassroom->waitingroom === 2, (string)$aivirtualclassroom->keyterms, format_string($course->fullname)),
+    'token' => meet::join_token(
+        $cm,
+        $context,
+        $USER,
+        $picurl,
+        $aivirtualclassroom->videopolicy,
+        null,
+        !$ismod && (int)$aivirtualclassroom->waitingroom === 2,
+        (string)$aivirtualclassroom->keyterms,
+        format_string($course->fullname)
+    ),
     'videoPolicy' => $aivirtualclassroom->videopolicy,
     'myNotes' => (string)$DB->get_field('aivirtualclassroom_note', 'content', ['aivirtualclassroomid' => $aivirtualclassroom->id, 'userid' => $USER->id]),
     'notesUrl' => (new moodle_url('/mod/aivirtualclassroom/notes.php', ['id' => $cm->id]))->out(false),

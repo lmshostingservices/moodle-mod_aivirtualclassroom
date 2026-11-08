@@ -129,8 +129,10 @@ function aivirtualclassroom_delete_instance($id) {
             \mod_aivirtualclassroom\local\meet::delete_remote($rec->storagekey);
         }
     }
-    foreach (['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_rec', 'aivirtualclassroom_bo', 'aivirtualclassroom_note',
-            'aivirtualclassroom_snote'] as $table) {
+    foreach (
+        ['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_rec', 'aivirtualclassroom_bo', 'aivirtualclassroom_note',
+            'aivirtualclassroom_snote'] as $table
+    ) {
         $DB->delete_records($table, ['aivirtualclassroomid' => $id]);
     }
     $DB->delete_records('event', ['modulename' => 'aivirtualclassroom', 'instance' => $id]);

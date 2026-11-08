@@ -79,8 +79,13 @@ class mod_aivirtualclassroom_mod_form extends moodleform_mod {
                 $options[$u->id] = fullname($u);
             }
         }
-        $mform->addElement('autocomplete', 'breakoutteachers', get_string('breakoutteachers', 'mod_aivirtualclassroom'), $options,
-            ['multiple' => true, 'noselectionstring' => get_string('allteachers', 'mod_aivirtualclassroom')]);
+        $mform->addElement(
+            'autocomplete',
+            'breakoutteachers',
+            get_string('breakoutteachers', 'mod_aivirtualclassroom'),
+            $options,
+            ['multiple' => true, 'noselectionstring' => get_string('allteachers', 'mod_aivirtualclassroom')]
+        );
         $mform->addHelpButton('breakoutteachers', 'breakoutteachers', 'mod_aivirtualclassroom');
 
         $mform->addElement('header', 'captionshdr', get_string('captions', 'mod_aivirtualclassroom'));

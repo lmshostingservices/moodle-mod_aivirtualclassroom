@@ -244,8 +244,10 @@ class meet {
             return null;
         }
         $rev = (int)$file->get_timemodified();
-        return (new \moodle_url('/mod/aivirtualclassroom/avatarimg.php',
-            ['u' => $userid, 'r' => $rev, 'k' => self::avatar_key($userid, $rev)]))->out(false);
+        return (new \moodle_url(
+            '/mod/aivirtualclassroom/avatarimg.php',
+            ['u' => $userid, 'r' => $rev, 'k' => self::avatar_key($userid, $rev)]
+        ))->out(false);
     }
 
     /**
@@ -255,11 +257,24 @@ class meet {
      * @param context_module $context
      * @param stdClass $user
      * @param string $picurl
+     * @param string $videopolicy Who may send camera video: 'all', 'teachers' or 'none'
+     * @param string|null $role Role override ('mod' or 'att'), or null to work it out from capabilities
+     * @param bool $wait Whether the person waits in the lobby until a teacher lets them in
+     * @param string $keyterms Course key terms that help speech recognition and translation
+     * @param string $course Course name, used as context for captions and translation
      * @return string
      */
-    public static function join_token($cm, context_module $context, stdClass $user, string $picurl,
-            string $videopolicy = 'teachers', ?string $role = null, bool $wait = false, string $keyterms = '',
-            string $course = ''): string {
+    public static function join_token(
+        $cm,
+        context_module $context,
+        stdClass $user,
+        string $picurl,
+        string $videopolicy = 'teachers',
+        ?string $role = null,
+        bool $wait = false,
+        string $keyterms = '',
+        string $course = ''
+    ): string {
         $now = time();
         return self::jwt([
             'iss' => (string)self::config()->siteid,
@@ -500,8 +515,10 @@ class meet {
      */
     public static function seconds_attended(int $aivirtualclassroomid, int $userid): int {
         global $DB;
-        return (int)$DB->get_field_sql('SELECT COALESCE(SUM(seconds), 0) FROM {aivirtualclassroom_att} WHERE aivirtualclassroomid = ? AND userid = ?',
-            [$aivirtualclassroomid, $userid]);
+        return (int)$DB->get_field_sql(
+            'SELECT COALESCE(SUM(seconds), 0) FROM {aivirtualclassroom_att} WHERE aivirtualclassroomid = ? AND userid = ?',
+            [$aivirtualclassroomid, $userid]
+        );
     }
 
     /**
@@ -582,8 +599,10 @@ class meet {
                     break;
                 case 'recording':
                     $key = (string)($ev->key ?? '');
-                    if (strpos($key, self::config()->siteid . '/' . $cmid . '/') !== 0 ||
-                            $DB->record_exists('aivirtualclassroom_rec', ['aivirtualclassroomid' => $aivirtualclassroom->id, 'storagekey' => $key])) {
+                    if (
+                        strpos($key, self::config()->siteid . '/' . $cmid . '/') !== 0 ||
+                            $DB->record_exists('aivirtualclassroom_rec', ['aivirtualclassroomid' => $aivirtualclassroom->id, 'storagekey' => $key])
+                    ) {
                         break;
                     }
                     $id = $DB->insert_record('aivirtualclassroom_rec', (object)[
