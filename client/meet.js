@@ -132,6 +132,7 @@ const S = {
   mic: null, cam: null, camRaw: null, screen: null, // local tracks
   audioTx: null, videoTx: null, screenTx: null, // transceivers
   micOn: lsGet('mic') !== '0', camOn: lsGet('cam') === '1', blur: lsGet('blur') === '1', bg: lsGet('bg') || (lsGet('blur') === '1' ? 'blur' : 'none'), smooth: lsGet('smooth') === '1', look: lsGet('look') === '1',
+  blurAmt: Math.max(0, Math.min(1, parseFloat(lsGet('blurAmt') || '0.9'))),
   noiseSuppression: lsGet('ns') !== '0', dataSaver: lsGet('ds') === '1',
   view: 'auto', hand: false, handCount: 0, tab: 'chat',
   pulls: new Map(), // key -> {sid,name,cid,kind,mid,track,tr,rid}
@@ -1188,9 +1189,12 @@ gl_FragColor=vec4(r,r,r,1.);}`;
       // behind a white shirt shows as a dotted dark line). There, take the colour from the nearest pixel that is
       // clearly you. Only the colour changes; the cut-out shape stays exactly the same.
       const fs = `precision mediump float;varying vec2 uv;uniform sampler2D vid,alp,bg;uniform vec2 bpx,vpx;uniform float bb;
-vec3 bgAt(vec2 p){if(bb<.5)return texture2D(bg,p).rgb;vec3 s=vec3(0.);
-for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){s+=texture2D(bg,p+vec2(float(i),float(j))*bpx*.9).rgb;}}return s/25.;}
 float al(vec2 p){return texture2D(alp,vec2(p.x,1.-p.y)).r;}
+/* Blur like Google Meet: each blur sample is weighted by how much it is background, so you are never smeared into
+   the blurred room (no dark ghost around your head and shoulders). */
+vec3 bgAt(vec2 p){if(bb<.5)return texture2D(bg,p).rgb;vec3 s=vec3(0.);float ws=0.;vec3 all=vec3(0.);
+for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){vec2 o=p+vec2(float(i),float(j))*bpx*.9;vec3 c=texture2D(bg,o).rgb;float w=1.-smoothstep(.2,.6,al(o));
+s+=c*w;ws+=w;all+=c;}}return ws>.5?s/ws:all/25.;}
 void main(){vec3 c=texture2D(vid,uv).rgb;float r=al(uv);float a=smoothstep(.25,.66,r);vec3 b=bgAt(uv);
 float e=(1.-a)*a*4.;
 /* the whole edge band, including the last pixels just inside you where webcam sharpening leaves a dark rim */
@@ -1234,7 +1238,19 @@ vec3 f=mix(c,b,.14*e);gl_FragColor=vec4(mix(b,f,a),1.);}`;
       gl.uniform1i(gl.getUniformLocation(pr, 'bg'), 2);
       gl.uniform1i(gl.getUniformLocation(pr, 'alp'), 3);
       gl.uniform1f(gl.getUniformLocation(pr, 'bb'), bgCanvas ? 0 : 1);
-      gl.uniform2f(gl.getUniformLocation(pr, 'bpx'), 1 / 64, 1 / Math.max(16, Math.round(64 * hh / w)));
+      // Blur strength (the slider): the blur is worked out from a small copy of the frame; a smaller copy = stronger
+      // blur. 0 = light (about 300 px wide), 1 = strong (about 40 px wide). Changes live, no restart.
+      const uBpx = gl.getUniformLocation(pr, 'bpx');
+      const setAmount = (amt) => {
+        if (!blurCanvas) return;
+        const bw = Math.round(300 - 260 * Math.max(0, Math.min(1, amt)));
+        blurCanvas.width = bw;
+        blurCanvas.height = Math.max(8, Math.round(bw * hh / w));
+        gl.useProgram(pr);
+        gl.uniform2f(uBpx, 1 / bw, 1 / blurCanvas.height);
+      };
+      setAmount(S.blurAmt);
+      this.setAmount = setAmount;
       gl.uniform2f(gl.getUniformLocation(pr, 'vpx'), 1 / w, 1 / hh);
       if (bgCanvas) {
         gl.activeTexture(gl.TEXTURE2);
@@ -1256,7 +1272,10 @@ vec3 f=mix(c,b,.14*e);gl_FragColor=vec4(mix(b,f,a),1.);}`;
           lastT = video.currentTime;
           // The person cut-out runs about 15 times a second (smoothed between runs); the picture itself is drawn
           // at the full camera frame rate. This halves the work and keeps video smooth on ordinary computers.
-          const segNow = studio || performance.now() - lastSeg > 62;
+          // Like Google Meet: the cut-out is worked out for every camera frame, so it always matches the picture
+          // (a cut-out from an earlier frame shows a halo when you move). Slower computers without graphics
+          // acceleration for the detector do it every other frame.
+          const segNow = studio || !this.cpu || performance.now() - lastSeg > 62;
           if (segNow) { lastSeg = performance.now(); sctx.drawImage(video, 0, 0, sw, sh); }
           if (!studio && segNow) this.segmenter.segmentForVideo(small, performance.now(), (res) => {
             const ms = res.confidenceMasks;
@@ -1362,6 +1381,20 @@ function renameMe() {
 
 async function setBlur(on) {
   return setBackground(on ? 'blur' : 'none');
+}
+
+// Blur strength slider (0 = light, 1 = strong). Remembered on this device; applied live.
+function setBlurAmount(v) {
+  S.blurAmt = Math.max(0, Math.min(1, v));
+  lsSet('blurAmt', String(S.blurAmt));
+  if (S.bg !== 'blur') return setBackground('blur');
+  if (Blur.video && Blur.setAmount) Blur.setAmount(S.blurAmt);
+}
+function blurSlider() {
+  return h('label', { class: 'lm-menu-item lm-slider' }, icon('blur'), h('span', {}, 'Blur strength'),
+    h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(S.blurAmt * 100), 'aria-label': 'Blur strength',
+      oninput: (e) => setBlurAmount(e.target.value / 100) }),
+    h('small', { class: 'ends' }, h('span', {}, 'Light'), h('span', {}, 'Strong')));
 }
 
 async function setBackground(mode) {
@@ -2077,7 +2110,10 @@ function renderBar() {
       btn(S.camOn ? 'Stop video' : 'Start video', S.camOn ? 'cam' : 'camOff', () => toggleCam(), { cls: S.camOn ? '' : 'off', disabled: !camAllowed() && !S.camOn, title: camAllowed() ? 'Camera' : 'Cameras are off in this room to save bandwidth' }),
       btn(S.screen ? 'Stop share' : 'Share', S.screen ? 'stop' : 'screen', toggleScreen, { cls: S.screen ? 'on' : '', disabled: !isMod() && !C.studentScreenShare && !pol().present })),
     h('div', { class: 'lm-group lm-fold' },
-      btn('Blur', 'blur', () => setBackground(S.bg === 'blur' ? 'none' : 'blur'), { cls: S.bg === 'blur' ? 'on' : '', pressed: S.bg === 'blur', title: 'Blur your background' }),
+      h('div', { class: 'lm-split' + (S.bg === 'blur' ? ' on' : '') },
+        btn('Blur', 'blur', () => setBackground(S.bg === 'blur' ? 'none' : 'blur'), { cls: S.bg === 'blur' ? 'on' : '', pressed: S.bg === 'blur', title: 'Blur your background' }),
+        pop(h('button', { class: 'lm-split-lang', title: 'Blur strength', 'aria-label': 'Blur strength', onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
+          h('div', { class: 'lm-pop menu' }, blurSlider()))),
       btn('Background', 'image', () => Backgrounds.open(), { cls: bgOn ? 'on' : '', title: bgOn ? 'Background: ' + bgLabel() : 'Put a picture behind you' }),
       btn('Smooth skin', 'sparkles', () => setSmooth(!S.smooth), { cls: S.smooth ? 'on' : '', pressed: !!S.smooth, title: 'A gentle touch-up of your camera' }),
       btn('Studio look', 'sun', () => setLook(!S.look), { cls: S.look ? 'on' : '', pressed: !!S.look, title: 'Better lighting, and keeps you centred and framed' })),
@@ -2119,6 +2155,7 @@ function renderBar() {
       h('span', { class: 'lm-more' }, pop(btn('More', 'more', toggleOpen),
         h('div', { class: 'lm-pop menu up-right' },
           check('blur', 'Blur background', S.bg === 'blur', (on) => setBackground(on ? 'blur' : 'none')),
+          blurSlider(),
           item('image', bgOn ? 'Background: ' + bgLabel() : 'Background picture', () => Backgrounds.open()),
           check('sparkles', 'Smooth skin', S.smooth, setSmooth),
           check('sun', 'Studio look', S.look, setLook),

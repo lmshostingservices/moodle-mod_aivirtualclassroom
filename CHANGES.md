@@ -1,5 +1,11 @@
 # Changes
 
+## 1.1.8 (2026112900)
+- Background blur to the Google Meet standard (from Google's published design):
+  - Blur uses the inverted cut-out: only background pixels feed the blur, weighted by how much they are background, so you are never smeared into the blurred room (no light or dark ghost around your head and shoulders).
+  - The cut-out is worked out for every camera frame on computers with graphics acceleration, so it always matches the picture when you move (every other frame on slower ones).
+- Blur strength slider (beyond Google Meet): the small arrow next to Blur opens a Light-to-Strong slider that changes the blur live and is remembered on this device (also in More on small screens).
+
 ## 1.1.7 (2026112800)
 - Cut-out safety margin halved and softened: the ring just outside you fades out instead of being fully kept, so ears and hair stay without a band of unblurred room around your head and shoulders.
 
