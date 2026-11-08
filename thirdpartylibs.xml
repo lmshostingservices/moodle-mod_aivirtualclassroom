@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<libraries>
+  <library>
+    <location>client/vendor</location>
+    <name>PDF.js</name>
+    <description>Renders presentation PDFs in the browser.</description>
+    <version>4.10.38</version>
+    <license>Apache</license>
+    <licenseversion>2.0</licenseversion>
+    <repository>https://github.com/mozilla/pdf.js</repository>
+  </library>
+  <library>
+    <location>client/fonts</location>
+    <name>Instrument Sans</name>
+    <description>Interface font for the meeting room.</description>
+    <version>2.0</version>
+    <license>OFL</license>
+    <licenseversion>1.1</licenseversion>
+    <repository>https://github.com/Instrument/instrument-sans</repository>
+  </library>
+</libraries>
