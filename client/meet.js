@@ -3663,9 +3663,12 @@ const CC = {
       const lv = this.live.get(s.cid);
       if (!lv || now - lv.ts > 6000) s.live = '';
       // Finished words: the last few sentences, kept short so the bubble stays two or three lines.
-      let done = [...s.parts.values()].map((l) => l.text).join(' ');
+      // A line waiting for its translation is not shown in the speaker's language (no flash of foreign words);
+      // the bubble shows "…" until the translation arrives (or the original, if none comes within ~3 s).
+      let done = [...s.parts.values()].filter((l) => !l.pending).map((l) => l.text).join(' ');
       if (done.length > 260) done = '…' + done.slice(done.length - 260).replace(/^\S*\s/, '');
-      const live = s.live ? (done ? ' ' : '') + s.live : '';
+      const waiting = [...s.parts.values()].some((l) => l.pending);
+      const live = s.live ? (done ? ' ' : '') + s.live : waiting ? (done ? ' ' : '') + '…' : '';
       if (s.done.data !== done) { s.done.data = done; s.changed = now; }
       if (s.now.data !== live) s.now.data = live;
       // Words start at the top; once they fill two lines the newest line stays at the bottom (like a teleprompter).
@@ -3673,14 +3676,15 @@ const CC = {
       const full = body.firstChild.offsetHeight > body.clientHeight + 1;
       if (body.classList.contains('full') !== full) body.classList.toggle('full', full);
       const last = [...s.parts.values()].pop();
-      const orig = last && last.translated && this.prefs.original && last.original && !s.live ? last.original : '';
+      // One clean line in your language: the original is not repeated under the translation.
+      const orig = '';
       if (s.orig.textContent !== orig) s.orig.textContent = orig;
       const pending = !!(last && last.pending);
-      const typing = s.live === '…' && !done;
+      const typing = (s.live === '…' || waiting) && !done;
       if (s.el.classList.contains('typing') !== typing) s.el.classList.toggle('typing', typing);
       if (s.el.classList.contains('pending') !== pending) s.el.classList.toggle('pending', pending);
       // Fade out after 14 s of silence; fade back in place when they speak again (no rebuild, no jump).
-      const show = (done || live) && now - s.ts < 14000;
+      const show = (done || live || pending) && now - s.ts < 14000;
       if (s.shown !== !!show) {
         s.shown = !!show;
         s.el.classList.toggle('out', !show);

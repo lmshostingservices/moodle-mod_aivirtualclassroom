@@ -1,5 +1,9 @@
 # Changes
 
+## 2.5.2 (2026120500)
+- Translated captions are one clean line in your own language: the original is no longer repeated underneath, and a line waiting for its translation shows "…" instead of flashing the speaker's words (the original appears only if no translation arrives within about 3 seconds).
+- Works with the LiveLab service update of 10 Nov 2026: translations now arrive in about half a second to a second (the AI model the service used before was retired by its provider, so translations, the translated voice and AI summaries had stopped working).
+
 ## 2.5.1 (2026120400)
 - Captions and translation now follow the language people actually speak. Each spoken phrase is checked for its language, so a guest (or anyone) whose browser is set to a different language than they speak is still captioned, translated and read aloud correctly. Before, their speech was labelled with their browser's language, so listeners got it untranslated, the translated voice stayed silent and "Hear only the translated voice" did not mute them. After two phrases in another language, the speaker's microphone language switches by itself and they see a short note.
 - "Original language" captions now really stay exactly as spoken (no translations are sent to people who chose it).
