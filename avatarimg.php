@@ -24,7 +24,9 @@
 
 use mod_aivirtualclassroom\local\meet;
 
-// pipeline-no-login: Class pictures are loaded by the live classroom without a Moodle session; each URL carries a signed key checked below.
+// Class pictures are loaded by the live classroom without a Moodle session; each URL carries a signed key checked below.
+// phpcs:ignore moodle.Commenting.InlineComment.NotCapital
+// pipeline-no-login: loaded without a session, signed key checked below.
 define('NO_MOODLE_COOKIES', true);
 require(__DIR__ . '/../../config.php');
 require_once($CFG->libdir . '/filelib.php');

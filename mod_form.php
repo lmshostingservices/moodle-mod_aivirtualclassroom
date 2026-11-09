@@ -45,7 +45,12 @@ class mod_aivirtualclassroom_mod_form extends moodleform_mod {
 
         $mform->addElement('header', 'schedulehdr', get_string('schedule', 'mod_aivirtualclassroom'));
         $mform->setExpanded('schedulehdr');
-        $mform->addElement('date_time_selector', 'timeopen', get_string('timeopen', 'mod_aivirtualclassroom'), ['optional' => true]);
+        $mform->addElement(
+            'date_time_selector',
+            'timeopen',
+            get_string('timeopen', 'mod_aivirtualclassroom'),
+            ['optional' => true]
+        );
         $mform->addHelpButton('timeopen', 'timeopen', 'mod_aivirtualclassroom');
         $mform->addElement('text', 'duration', get_string('duration', 'mod_aivirtualclassroom'), ['size' => 5]);
         $mform->setType('duration', PARAM_INT);
@@ -74,7 +79,16 @@ class mod_aivirtualclassroom_mod_form extends moodleform_mod {
         $mform->addElement('header', 'breakouthdr', get_string('breakouts', 'mod_aivirtualclassroom'));
         $options = [];
         if ($this->context) {
-            $users = get_enrolled_users($this->context, 'mod/aivirtualclassroom:moderate', 0, 'u.*', 'u.lastname, u.firstname', 0, 0, true);
+            $users = get_enrolled_users(
+                $this->context,
+                'mod/aivirtualclassroom:moderate',
+                0,
+                'u.*',
+                'u.lastname, u.firstname',
+                0,
+                0,
+                true
+            );
             foreach ($users as $u) {
                 $options[$u->id] = fullname($u);
             }

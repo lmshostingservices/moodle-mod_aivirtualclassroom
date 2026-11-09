@@ -41,8 +41,8 @@ $cm = get_coursemodule_from_id('aivirtualclassroom', $id, 0, false, MUST_EXIST);
 $aivirtualclassroom = $DB->get_record('aivirtualclassroom', ['id' => $cm->instance], '*', MUST_EXIST);
 $context = context_module::instance($cm->id);
 if (
-    !$cm->visible || empty($aivirtualclassroom->guestaccess) || empty($aivirtualclassroom->guestkey) || !hash_equals($aivirtualclassroom->guestkey, $key) ||
-        !meet::is_configured()
+    !$cm->visible || empty($aivirtualclassroom->guestaccess) || empty($aivirtualclassroom->guestkey) ||
+        !hash_equals($aivirtualclassroom->guestkey, $key) || !meet::is_configured()
 ) {
     throw new moodle_exception('guestlinkinvalid', 'mod_aivirtualclassroom');
 }
@@ -92,8 +92,14 @@ if ($name !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($aivirtualclassroom->name));
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => $url->out(false), 'class' => 'mt-3']);
-echo html_writer::label(get_string('yourname', 'mod_aivirtualclassroom'), 'aivirtualclassroom-guestname', true, ['class' => 'form-label']);
-echo html_writer::empty_tag('input', ['type' => 'text', 'name' => 'name', 'id' => 'aivirtualclassroom-guestname', 'required' => 'required',
+echo html_writer::label(
+    get_string('yourname', 'mod_aivirtualclassroom'),
+    'aivirtualclassroom-guestname',
+    true,
+    ['class' => 'form-label']
+);
+echo html_writer::empty_tag('input', ['type' => 'text', 'name' => 'name', 'id' => 'aivirtualclassroom-guestname',
+    'required' => 'required',
     'maxlength' => 60, 'class' => 'form-control mb-3', 'autocomplete' => 'name']);
 echo html_writer::empty_tag('input', ['type' => 'submit', 'value' => get_string('join', 'mod_aivirtualclassroom'),
     'class' => 'btn btn-primary']);

@@ -18,8 +18,7 @@
  * Make an AI quiz from the class slides (teachers only).
  *
  * The browser sends the slide text here; this server asks LMS Labs to write the questions with the site's
- * Central Config credentials, so the API key never reaches the browser. LMS Labs charges the site's credits:
- * 2 credits per question, 3 with voiceover.
+ * Central Config credentials, so the API key never reaches the browser. AI quizzes are included in the class price.
  *
  * @package    mod_aivirtualclassroom
  * @copyright  2026 LMS Hosting Services
@@ -52,10 +51,15 @@ if (!is_array($in) || !confirm_sesskey((string)($in['sesskey'] ?? ''))) {
 }
 core\session\manager::write_close();
 
-$types = array_values(array_intersect((array)($in['types'] ?? []), ['mcq', 'truefalse', 'matching', 'categorysort', 'ordering', 'tapcard']));
+$types = array_values(array_intersect((array)($in['types'] ?? []), ['mcq', 'truefalse', 'matching', 'categorysort',
+    'ordering', 'tapcard']));
 $body = [
     'title' => core_text::substr(clean_param((string)($in['title'] ?? 'Quiz'), PARAM_TEXT), 0, 200),
-    'text' => core_text::substr(clean_param((string)($in['text'] ?? ''), PARAM_RAW_TRIMMED), 0, 60000), // Pipeline-ignore: PARAM_RAW_TRIMMED sent to the AI only.
+    'text' => core_text::substr(
+        clean_param((string)($in['text'] ?? ''), PARAM_RAW_TRIMMED), // Pipeline-ignore: PARAM_RAW_TRIMMED AI only.
+        0,
+        60000
+    ),
     'count' => max(1, min(20, (int)($in['count'] ?? 5))),
     'types' => $types ?: ['mcq'],
     'voice' => !empty($in['voice']),

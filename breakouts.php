@@ -73,7 +73,12 @@ if (!$teachers) {
     exit;
 }
 
-$current = $DB->get_records_menu('aivirtualclassroom_bo', ['aivirtualclassroomid' => $aivirtualclassroom->id], '', 'userid, teacherid');
+$current = $DB->get_records_menu(
+    'aivirtualclassroom_bo',
+    ['aivirtualclassroomid' => $aivirtualclassroom->id],
+    '',
+    'userid, teacherid'
+);
 
 // Room summary.
 $summary = new html_table();

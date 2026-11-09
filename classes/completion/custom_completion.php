@@ -43,7 +43,10 @@ class custom_completion extends activity_custom_completion {
             MUST_EXIST
         );
         if ($rule === 'completionattendance') {
-            $done = meet::seconds_attended($aivirtualclassroom->id, $this->userid) >= $aivirtualclassroom->completionattendance * 60;
+            $done = meet::seconds_attended(
+                $aivirtualclassroom->id,
+                $this->userid
+            ) >= $aivirtualclassroom->completionattendance * 60;
         } else {
             $done = meet::hand_raises($aivirtualclassroom->id, $this->userid) >= $aivirtualclassroom->completionhandraises;
         }
@@ -67,8 +70,16 @@ class custom_completion extends activity_custom_completion {
     public function get_custom_rule_descriptions(): array {
         $rules = $this->cm->customdata['customcompletionrules'] ?? [];
         return [
-            'completionattendance' => get_string('completiondetail:attendance', 'mod_aivirtualclassroom', $rules['completionattendance'] ?? 0),
-            'completionhandraises' => get_string('completiondetail:handraises', 'mod_aivirtualclassroom', $rules['completionhandraises'] ?? 0),
+            'completionattendance' => get_string(
+                'completiondetail:attendance',
+                'mod_aivirtualclassroom',
+                $rules['completionattendance'] ?? 0
+            ),
+            'completionhandraises' => get_string(
+                'completiondetail:handraises',
+                'mod_aivirtualclassroom',
+                $rules['completionhandraises'] ?? 0
+            ),
         ];
     }
 

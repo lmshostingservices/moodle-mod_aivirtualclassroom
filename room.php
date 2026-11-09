@@ -51,7 +51,10 @@ $moodlepic = $pic->get_url($PAGE)->out(false);
 $custompic = meet::avatar_url($USER->id);
 $picurl = $custompic ?: $moodlepic;
 $cfg = meet::config();
-$guesturl = ($ismod && $aivirtualclassroom->guestaccess) ? meet::guest_url($cm->id, $aivirtualclassroom->guestkey)->out(false) : null;
+$guesturl = ($ismod && $aivirtualclassroom->guestaccess) ? meet::guest_url(
+    $cm->id,
+    $aivirtualclassroom->guestkey
+)->out(false) : null;
 
 $config = [
     'worker' => meet::worker_url(),
@@ -67,7 +70,11 @@ $config = [
         format_string($course->fullname)
     ),
     'videoPolicy' => $aivirtualclassroom->videopolicy,
-    'myNotes' => (string)$DB->get_field('aivirtualclassroom_note', 'content', ['aivirtualclassroomid' => $aivirtualclassroom->id, 'userid' => $USER->id]),
+    'myNotes' => (string)$DB->get_field(
+        'aivirtualclassroom_note',
+        'content',
+        ['aivirtualclassroomid' => $aivirtualclassroom->id, 'userid' => $USER->id]
+    ),
     'notesUrl' => (new moodle_url('/mod/aivirtualclassroom/notes.php', ['id' => $cm->id]))->out(false),
     'exportUrl' => (new moodle_url('/mod/aivirtualclassroom/export.php', ['id' => $cm->id]))->out(false),
     'sesskey' => sesskey(),

@@ -133,6 +133,8 @@ const S = {
   audioTx: null, videoTx: null, screenTx: null, // transceivers
   micOn: lsGet('mic') !== '0', camOn: lsGet('cam') === '1', blur: lsGet('blur') === '1', bg: lsGet('bg') || (lsGet('blur') === '1' ? 'blur' : 'none'), smooth: lsGet('smooth') === '1', look: lsGet('look') === '1',
   blurAmt: Math.max(0, Math.min(1, parseFloat(lsGet('blurAmt') || '0.9'))),
+  lookBright: Math.max(0, Math.min(1, parseFloat(lsGet('lookBright') || '0.5'))),
+  lookZoom: Math.max(0, Math.min(1, parseFloat(lsGet('lookZoom2') || '0'))),
   noiseSuppression: lsGet('ns') !== '0', dataSaver: lsGet('ds') === '1',
   view: 'auto', hand: false, handCount: 0, tab: 'chat',
   pulls: new Map(), // key -> {sid,name,cid,kind,mid,track,tr,rid}
@@ -361,6 +363,19 @@ async function onMessage(m) {
     case 'ccneed':
       CC.need = m.on;
       return Recog.sync();
+    case 'spoke': {
+      // The server heard me speak another language than my "I speak" setting (e.g. a guest whose browser is in
+      // English): switch, so my captions are labelled and translated correctly for everyone.
+      const want = String(m.lang || '').split('-')[0];
+      if (!want || CC.prefs.speak.split('-')[0] === want) return undefined;
+      const l = suggested().find((x) => x.code.split('-')[0] === want) || findLang(want);
+      if (!l) return undefined;
+      CC.prefs.speak = l.code;
+      CC.save();
+      Recog.sync();
+      renderBar();
+      return toast(`💬 Captions now use ${l.name} for your speech. Change it under Captions › Your microphone.`, 7000);
+    }
     case 'ended':
       S.ended = true;
       cleanup();
@@ -564,9 +579,11 @@ function camEncodings() {
       { rid: 'q', maxBitrate: 400000, maxFramerate: 24, scaleResolutionDownBy: 3 },
     ]
     : [
+      // Same smoothness as the trainer's layers: the small layers are what everyone sees while slides, a screen,
+      // the whiteboard or speaker view are on, and 15 fps there made learners and guests look laggy.
       { rid: 'f', maxBitrate: 1500000, maxFramerate: 30 },
-      { rid: 'h', maxBitrate: 400000, maxFramerate: 24, scaleResolutionDownBy: 2 },
-      { rid: 'q', maxBitrate: 120000, maxFramerate: 15, scaleResolutionDownBy: 4 },
+      { rid: 'h', maxBitrate: 600000, maxFramerate: 30, scaleResolutionDownBy: 2 },
+      { rid: 'q', maxBitrate: 200000, maxFramerate: 24, scaleResolutionDownBy: 4 },
     ];
 }
 
@@ -578,10 +595,14 @@ function bigRid(p) {
   return px >= 1400 ? 'f' : 'h';
 }
 
-// The media connection failed (network change, Wi-Fi drop): rebuild it quietly a few times before asking the user.
+// The media connection failed (network change, Wi-Fi drop, a media server restart): keep rebuilding it quietly,
+// waiting a little longer each time, for about two minutes before asking the user. (Three quick tries used to give
+// up after a few seconds, so any drop longer than that needed a page reload.)
+const MEDIA_RETRY_S = [1, 2, 3, 5, 8, 10, 15, 15, 15, 15, 15, 15];
 async function reconnectMedia() {
+  if (S.ended || S.left) return;
   S.mediaRetries = (S.mediaRetries || 0) + 1;
-  if (S.mediaRetries > 3) {
+  if (S.mediaRetries > MEDIA_RETRY_S.length) {
     setStatus('Media connection lost');
     overlayAction('Connection lost', 'Your audio/video connection dropped.', 'Reconnect', () => location.reload());
     return;
@@ -595,7 +616,13 @@ async function reconnectMedia() {
   S.audioTx = S.videoTx = S.screenTx = null;
   S.sid = null;
   S.pulls.clear();
-  await new Promise((r) => setTimeout(r, 400 * S.mediaRetries));
+  // Wait, but go straight away when the browser says the network is back.
+  await new Promise((r) => {
+    const t = setTimeout(done, MEDIA_RETRY_S[S.mediaRetries - 1] * 1000);
+    function done() { clearTimeout(t); window.removeEventListener('online', done); r(); }
+    window.addEventListener('online', done);
+  });
+  if (S.ended || S.left) return;
   try {
     await startMedia();
   } catch (e) {
@@ -826,6 +853,7 @@ async function rebuildCamNow() {
 async function toggleCam(on = !S.camOn) {
   if (on && !camAllowed()) return toast('Your teacher has turned student cameras off to save bandwidth.');
   S.camOn = on;
+  if (on) S.camForcedOff = false;
   lsSet('cam', on ? '1' : '0');
   if (on) {
     await ensureCamTrack();
@@ -853,8 +881,15 @@ async function toggleCam(on = !S.camOn) {
 
 function applyCameraPolicy() {
   if (S.camOn && !camAllowed()) {
+    S.camForcedOff = true; // the room setting turned it off, not this person
     toggleCam(false);
     toast('Cameras are limited in this room to save bandwidth.');
+  } else if (S.camForcedOff && !S.camOn && camAllowed()) {
+    // Cameras allowed again (e.g. back from "Audio only"): a teacher's camera comes straight back on; anyone else
+    // decides for themselves.
+    S.camForcedOff = false;
+    if (ME.mod) toggleCam(true);
+    else toast('Cameras are allowed again. Turn yours on with Start video.', 6000);
   }
   renderBar();
 }
@@ -984,12 +1019,11 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
       const fw = 256, fh = Math.round(256 * hh / w);
       const fcv = h('canvas', { width: fw, height: fh });
       const fx = fcv.getContext('2d');
-      // Gentle framing: head-and-shoulders like a webcam on a good monitor, never a close-up.
-      const ZOOM = 1.05; // when no face is found
-      const MAXZ = () => (S.bg && S.bg !== 'none' ? 1.12 : 1.2); // less zoom when a background effect is on
+      // Fixed framing: a steady zoom on the centre of the picture (Zoom slider). The camera never moves or follows you.
+      const ZOOM = 1 + 0.4 * S.lookZoom;
       const cur = { z: ZOOM, cx: 0.5, cy: 0.5, g: [1, 1, 1], lift: 0, fx: 0.5, fy: 0.42, fr: 0.16 };
       const tgt = { z: ZOOM, cx: 0.5, cy: 0.5, g: [1, 1, 1], lift: 0, fx: 0.5, fy: 0.42, fr: 0.16 };
-      let lastLight = 0, lastFace = 0, lastSeen = 0;
+      let lastLight = 0, lastFace = 0;
       this.video = video;
       this.gl = gl;
       const draw = () => {
@@ -1007,11 +1041,14 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
             for (let i = 0; i < px.length; i += 4) { r += px[i]; g += px[i + 1]; b += px[i + 2]; }
             const n = px.length / 4; r /= n * 255; g /= n * 255; b /= n * 255;
             const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            const ex = Math.max(0.9, Math.min(1.7, 0.47 / Math.max(lum, 0.05)));
+            // Brighter, like a well-lit video call: aim a little above middle grey.
+            // Brightness slider: 0 = darker than the camera, 0.5 = default, 1 = bright.
+            const aim = 0.3 + 0.32 * S.lookBright;
+            const ex = Math.max(0.6, Math.min(1.8, aim / Math.max(lum, 0.05)));
             const m = (r + g + b) / 3;
             const wb = [r, g, b].map((c) => Math.max(0.9, Math.min(1.12, Math.pow(m / Math.max(c, 0.02), 0.35))));
             tgt.g = wb.map((k) => k * ex);
-            tgt.lift = Math.max(0, Math.min(0.35, (0.42 - lum) * 1.2));
+            tgt.lift = Math.max(0, Math.min(0.4, (aim - 0.05 - lum) * 1.3));
           }
           if (face && now - lastFace > 330) {
             // Framing: centre the face, eyes a little above the middle, face about a quarter of the width.
@@ -1020,22 +1057,16 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
             const res = face.detectForVideo(fcv, now);
             const d = res && res.detections && res.detections[0];
             if (d && d.boundingBox) {
-              lastSeen = now;
               const bb = d.boundingBox;
               const fcx = (bb.originX + bb.width / 2) / fw;
               const fcy = (bb.originY + bb.height / 2) / fh;
-              const z = Math.max(1.0, Math.min(MAXZ(), 0.15 / Math.max(bb.width / fw, 0.05)));
-              const cy = fcy + 0.1 / z;
-              // Only re-frame when the person has really moved (no constant drifting). A steady frame also keeps the
-              // background cut-out clean: a picture that keeps sliding under it shows a halo at the edge.
-              tgt.fx = fcx; tgt.fy = fcy; tgt.fr = Math.max(0.08, Math.min(0.35, bb.width / fw)); // where you are, for the light
-              if (Math.abs(fcx - tgt.cx) > 0.07 || Math.abs(cy - tgt.cy) > 0.07 || Math.abs(z - tgt.z) > 0.08) {
-                tgt.z = z; tgt.cx = fcx; tgt.cy = cy;
-              }
-            } else if (now - lastSeen > 2500) { tgt.z = ZOOM; tgt.cx = 0.5; tgt.cy = 0.5; }
+              // Only used to place the soft key light on your face; the framing stays fixed.
+              tgt.fx = fcx; tgt.fy = fcy; tgt.fr = Math.max(0.08, Math.min(0.35, bb.width / fw));
+            }
           }
           // Ease towards the targets so nothing jumps.
-          const ease = S.bg && S.bg !== 'none' ? 0.015 : 0.03; // slow, smooth moves
+          tgt.z = 1 + 0.4 * S.lookZoom; // zoom slider: 1x to 1.4x on the centre, never moving
+          const ease = 0.08;
           cur.z += (tgt.z - cur.z) * ease;
           cur.cx += (tgt.cx - cur.cx) * ease;
           cur.cy += (tgt.cy - cur.cy) * ease;
@@ -1053,7 +1084,9 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
           // lens softening is left out (it would only blur the edge the cut-out uses).
           gl.uniform2f(uFc, (cur.fx - x0) / cw, (cur.fy - y0) / chh);
           gl.uniform1f(uFr, cur.fr / cw);
-          gl.uniform1f(uRoom, S.bg && S.bg !== 'none' ? 0 : 1);
+          // No "portrait lens": the room around you stays sharp and keeps its colour (Studio look only brightens and
+          // zooms). It used to soften and darken the edges of the picture, which looked like blur with blur off.
+          gl.uniform1f(uRoom, 0);
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         } catch (err) { return FxSafe.fail('look', err && err.message); }
       };
@@ -1081,7 +1114,9 @@ gl_FragColor=vec4(clamp(c,0.,1.),1.);}`;
 async function setLook(on) {
   S.look = on;
   lsSet('look', on ? '1' : '0');
+  if (S.room) renderBar();
   await rebuildCam();
+  if (S.room) renderBar();
 }
 
 const Blur = {
@@ -1137,18 +1172,104 @@ const Blur = {
       const hh = video.videoHeight || st.height || 720;
       const fps = Math.min(30, Math.round(st.frameRate || 30));
       // Segmentation input: 256 px wide, same aspect as the camera.
+      // Square, like the detector's own input (it squares whatever it is given).
       const sw = studio ? 512 : 256;
-      const sh = Math.max(64, Math.round(sw * hh / w / 2) * 2);
+      const sh = sw;
       const small = h('canvas', { width: sw, height: sh });
       const sctx = small.getContext('2d');
       const mask = new Uint8Array(sw * sh);
-      const grow = new Uint8Array(sw * sh);
-      const prev = new Float32Array(sw * sh);
+      let prev = new Float32Array(sw * sh);
+      let prevB = new Float32Array(sw * sh);
       let havePrev = false;
+      // (1) Crop around you: the detector looks at a box around the person found last time, not the whole room, so
+      //     ears, hair and fingers get more detail. The detector squares its input anyway, so the box can take your
+      //     shape (less stretching than the full 16:9 frame). Normalised 0..1.
+      const roi = { x: 0, y: 0, w: 1, h: 1 };
+      let mroi = { x: 0, y: 0, w: 1, h: 1 }; // the box the current mask was made in
+      // (3) Movement prediction: how fast the top, middle and bottom of you move sideways, used to slide the last
+      //     cut-out along on frames where the detector does not run.
+      const vel = [0, 0, 0];
+      const lastC = [null, null, null];
+      let bandY = [0.33, 0.66];
+      let segAt = 0;
+      // (4) Quality levels: 0 = detector every frame, full edge detail; 3 = for slow computers.
+      const TIERS = [{ every: 0, guide: 640 }, { every: 33, guide: 640 }, { every: 50, guide: 480 }, { every: 80, guide: 320 }];
+      let tier = this.cpu ? 2 : 0;
+      let winCost = 0, winN = 0, goodWins = 0, badWins = 0, slowRun = 0, lastTierChange = 0;
+      // Where in the picture something is really moving (a waving arm), from a coarse frame-to-frame comparison of the
+      // camera picture itself: the outline follows instantly there, and stays steady where nothing moves.
+      const MW = 64, MH = Math.max(18, Math.round(64 * hh / w));
+      const motCan = h('canvas', { width: MW, height: MH });
+      const motCtx = motCan.getContext('2d', { willReadFrequently: true });
+      let motPrev = null;
+      const motRaw = new Float32Array(MW * MH);
+      const motMap = new Float32Array(MW * MH);
+      const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+      const clamp01 = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+      // Move the stored smoothing history into a new crop box, so changing the box never makes the cut-out jump.
+      const moveRoi = (nx, ny, nw, nh) => {
+        if (Math.abs(nx - roi.x) + Math.abs(ny - roi.y) + Math.abs(nw - roi.w) + Math.abs(nh - roi.h) < 1e-4) return;
+        for (let y = 0; y < sh; y++) {
+          const fy = ny + (y + 0.5) / sh * nh;
+          const oy = Math.floor((fy - roi.y) / roi.h * sh);
+          for (let x = 0; x < sw; x++) {
+            const fx = nx + (x + 0.5) / sw * nw;
+            const ox = Math.floor((fx - roi.x) / roi.w * sw);
+            prevB[y * sw + x] = (ox >= 0 && oy >= 0 && ox < sw && oy < sh) ? prev[oy * sw + ox] : 0;
+          }
+        }
+        const t = prev; prev = prevB; prevB = t;
+        roi.x = nx; roi.y = ny; roi.w = nw; roi.h = nh;
+      };
+      const full = () => moveRoi(0, 0, 1, 1);
+      // A box of size bw x bh centred on (cx, cy), kept inside the frame.
+      const boxAt = (cx, cy, bw, bh) => [clamp01(cx - bw / 2, 0, 1 - bw), clamp01(cy - bh / 2, 0, 1 - bh), bw, bh];
+      // After each detection: find you, plan the next crop box and measure sideways speed per band.
+      const track = (now) => {
+        let x0 = sw, x1 = -1, y0 = sh, y1 = -1, n = 0;
+        for (let y = 0; y < sh; y++) {
+          for (let x = 0; x < sw; x++) {
+            if (mask[y * sw + x] > 128) { n++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+          }
+        }
+        if (n < sw * sh * 0.004) { full(); vel[0] = vel[1] = vel[2] = 0; lastC.fill(null); return; }
+        const fx = (x) => roi.x + x / sw * roi.w;
+        const fy = (y) => roi.y + y / sh * roi.h;
+        const bx0 = fx(x0), bx1 = fx(x1 + 1), by0 = fy(y0), by1 = fy(y1 + 1);
+        // Sideways speed of the top, middle and bottom thirds of you.
+        const yA = y0 + (y1 - y0) / 3, yB = y0 + 2 * (y1 - y0) / 3;
+        bandY = [fy(yA), fy(yB)];
+        const sx = [0, 0, 0], sn = [0, 0, 0];
+        for (let y = y0; y <= y1; y++) {
+          const b = y < yA ? 0 : (y < yB ? 1 : 2);
+          for (let x = x0; x <= x1; x++) { if (mask[y * sw + x] > 128) { sx[b] += x; sn[b]++; } }
+        }
+        const dt = now - segAt;
+        for (let b = 0; b < 3; b++) {
+          if (sn[b] < 20) { vel[b] = 0; lastC[b] = null; continue; }
+          const c = fx(sx[b] / sn[b]);
+          if (lastC[b] !== null && dt > 0 && dt < 300) vel[b] = vel[b] * 0.4 + ((c - lastC[b]) / dt) * 0.6;
+          lastC[b] = c;
+        }
+        // Next crop: the box around you plus a generous margin (wider when moving), at least a third of the frame.
+        const speed = Math.max(Math.abs(vel[0]), Math.abs(vel[1]), Math.abs(vel[2])) * 150;
+        const tw = clamp01((bx1 - bx0) * 1.3 + 0.1 + speed, 0.35, 1);
+        const th = clamp01((by1 - by0) * 1.2 + 0.1, 0.35, 1);
+        const [tx, ty] = boxAt((bx0 + bx1) / 2, (by0 + by1) / 2 - 0.03, tw, th);
+        // You touch a side of the crop that is not the frame edge: widen straight away, no smoothing.
+        const touch = (x0 <= 2 && roi.x > 0.001) || (x1 >= sw - 3 && roi.x + roi.w < 0.999)
+          || (y0 <= 2 && roi.y > 0.001) || (y1 >= sh - 3 && roi.y + roi.h < 0.999);
+        if (touch) {
+          const nw = Math.min(1, Math.max(tw, roi.w) * 1.3);
+          const nh = Math.min(1, Math.max(th, roi.h) * 1.3);
+          moveRoi(...boxAt((bx0 + bx1) / 2, (by0 + by1) / 2, nw, nh));
+        } else if (Math.abs(tx - roi.x) > 0.03 || Math.abs(ty - roi.y) > 0.03 || Math.abs(tw - roi.w) > 0.015 || Math.abs(th - roi.h) > 0.015) {
+          // Dead zone and easing stop the crop from jittering.
+          moveRoi(roi.x + (tx - roi.x) * 0.5, roi.y + (ty - roi.y) * 0.5, roi.w + (tw - roi.w) * 0.5, roi.h + (th - roi.h) * 0.5);
+        }
+      };
       // Background: picture cover-fitted once, or a blurred copy of the camera each frame.
       let bgCanvas = null;
-      let blurCanvas = null;
-      let bctx = null;
       if (mode !== 'blur') {
         const src = await Backgrounds.image(mode);
         if (src) {
@@ -1158,12 +1279,7 @@ const Blur = {
           bx.drawImage(src, (w - src.width * sc) / 2, (hh - src.height * sc) / 2, src.width * sc, src.height * sc);
         }
       }
-      if (!bgCanvas) {
-        // Blur is done on the graphics chip: a tiny copy of the frame, smoothed again in the shader. (The old
-        // canvas blur filter ran on the processor every frame and made video lag.)
-        blurCanvas = h('canvas', { width: 64, height: Math.max(16, Math.round(64 * hh / w)) });
-        bctx = blurCanvas.getContext('2d');
-      }
+      const blurOn = !bgCanvas;
       const out = h('canvas', { width: w, height: hh });
       const gl = out.getContext('webgl', { premultipliedAlpha: false, antialias: false });
       if (!gl) throw new Error('no webgl');
@@ -1173,44 +1289,72 @@ const Blur = {
         if (this.video !== video) return;
         FxSafe.fail(studio ? 'studio' : 'background', 'graphics reset');
       });
-      // Pass 1 (mid resolution): guided filter. Snaps the rough model mask to real edges in the picture
-      // (hair, shoulders, fingers) using colour as the guide. Pass 2 (full resolution): composite.
-      const gw = Math.min(w, 640);
-      const gh = Math.round(gw * hh / w);
+      // Pass 1 (mid resolution): joint bilateral filter, as in Google's design. Smooths the rough model mask into an
+      // even outline, letting it follow real colour edges in the picture (hair, shoulders, fingers) without catching
+      // on patterns in the room. Pass 2 (full resolution): composite.
+      let gw = Math.min(w, TIERS[tier].guide);
+      let gh = Math.round(gw * hh / w);
       const vs = 'attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}';
-      const fsGuide = `precision highp float;varying vec2 uv;uniform sampler2D vid,msk;uniform vec2 gpx;
-void main(){vec3 mI=vec3(0.);float mp=0.;vec3 mIp=vec3(0.);vec3 mII=vec3(0.);float n=0.;
-for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){vec2 o=uv+vec2(float(i),float(j))*gpx*2.6;vec3 I=texture2D(vid,o).rgb;float q=texture2D(msk,o).r;
-mI+=I;mp+=q;mIp+=I*q;mII+=I*I;n+=1.;}}
-mI/=n;mp/=n;mIp/=n;mII/=n;vec3 cov=mIp-mI*mp;vec3 vr=mII-mI*mI;vec3 a=clamp(cov/(vr+.0015)/3.,-6.,6.);
-vec3 I0=texture2D(vid,uv).rgb;float r=clamp(mp+dot(a,I0-mI),0.,1.);
-gl_FragColor=vec4(r,r,r,1.);}`;
-      // Edge colour clean-up: on the half-transparent edge the camera pixel is part you, part real room (a dark wall
-      // behind a white shirt shows as a dotted dark line). There, take the colour from the nearest pixel that is
-      // clearly you. Only the colour changes; the cut-out shape stays exactly the same.
-      const fs = `precision mediump float;varying vec2 uv;uniform sampler2D vid,alp,bg;uniform vec2 bpx,vpx;uniform float bb;
+      // The mask arrives for the crop box (roi); outside it is room, unless the box edge is the frame edge (lim).
+      // shf slides each third of you sideways by the predicted movement on frames without a fresh detection.
+      const fsGuide = `precision highp float;varying vec2 uv;uniform sampler2D vid,msk;uniform vec2 gpx,bnd;uniform vec3 shf;uniform vec4 roi,lim;uniform float rad;
+float mk(vec2 o){float s=mix(mix(shf.x,shf.y,smoothstep(bnd.x-.06,bnd.x+.06,o.y)),shf.z,smoothstep(bnd.y-.06,bnd.y+.06,o.y));
+vec2 q=(vec2(o.x-s,o.y)-roi.xy)/roi.zw;if(q.x<lim.x||q.y<lim.y||q.x>lim.z||q.y>lim.w)return 0.;return texture2D(msk,clamp(q,0.,1.)).r;}
+void main(){vec3 c0=texture2D(vid,uv).rgb;float s=0.;float ws=0.;float g=0.;float gs=0.;
+for(int i=-3;i<=3;i++){for(int j=-3;j<=3;j++){vec2 d=vec2(float(i),float(j));vec2 o=uv+d*gpx*rad;vec3 dc=texture2D(vid,o).rgb-c0;
+float m=mk(o);float sp=exp(-dot(d,d)*.18);float w=sp*exp(-dot(dc,dc)*20.);s+=m*w;ws+=w;g+=m*sp;gs+=sp;}}
+/* mostly the smooth shape of you (even outline that follows your head), nudged by colour edges so it sits on
+   your real edge; colour alone would let a dark room behind dark hair bulge into the outline */
+/* colour may pull the outline in freely, but only push it out a little: a room the same colour as your clothes
+   (white board behind a white shirt) can't be pulled in with you */
+float gm=g/gs;float r=min(mix(gm,s/ws,.35),gm+.08);gl_FragColor=vec4(r,r,r,1.);}`;
+      // Blur like Google Meet: a quarter-size copy of the room with you left out (each pixel weighted by how much it
+      // is room), then a wide, even Gaussian blur in two directions, twice. The weights travel with the colours, so you
+      // are never smeared into the room and the blur is equally smooth right up to your edge (no blocks).
+      const fsDown = `precision mediump float;varying vec2 uv;uniform sampler2D vid,alp;uniform vec2 vpx;
 float al(vec2 p){return texture2D(alp,vec2(p.x,1.-p.y)).r;}
-/* Blur like Google Meet: each blur sample is weighted by how much it is background, so you are never smeared into
-   the blurred room (no dark ghost around your head and shoulders). */
-vec3 bgAt(vec2 p){if(bb<.5)return texture2D(bg,p).rgb;vec3 s=vec3(0.);float ws=0.;vec3 all=vec3(0.);
-for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){vec2 o=p+vec2(float(i),float(j))*bpx*.9;vec3 c=texture2D(bg,o).rgb;float w=1.-smoothstep(.2,.6,al(o));
-s+=c*w;ws+=w;all+=c;}}return ws>.5?s/ws:all/25.;}
-void main(){vec3 c=texture2D(vid,uv).rgb;float r=al(uv);float a=smoothstep(.25,.66,r);vec3 b=bgAt(uv);
-float e=(1.-a)*a*4.;
-/* the whole edge band, including the last pixels just inside you where webcam sharpening leaves a dark rim */
-float z=smoothstep(.02,.2,r)*(1.-smoothstep(.8,.99,r));
-if(z>.01){vec3 fg=c;float best=r;
-for(int i=-3;i<=3;i++){for(int j=-3;j<=3;j++){vec2 o=uv+vec2(float(i),float(j))*vpx*1.5;float k=al(o);if(k>best+.02){best=k;fg=texture2D(vid,o).rgb;}}}
-c=mix(c,fg,z);}
-vec3 f=mix(c,b,.14*e);gl_FragColor=vec4(mix(b,f,a),1.);}`;
+void main(){vec3 s=vec3(0.);float ws=0.;vec3 all=vec3(0.);
+for(int i=0;i<4;i++){for(int j=0;j<4;j++){vec2 o=uv+(vec2(float(i),float(j))-1.5)*vpx;vec3 c=texture2D(vid,o).rgb;float w=1.-smoothstep(.12,.45,al(o));
+s+=c*w;ws+=w;all+=c;}}
+gl_FragColor=vec4(ws>.01?s/ws:all/16.,ws/16.);}`;
+      const fsBlur = `precision mediump float;varying vec2 uv;uniform sampler2D src;uniform vec2 dir;
+vec4 fb(vec2 p){return texture2D(src,vec2(p.x,1.-p.y));}
+void main(){vec3 s=vec3(0.);float ws=0.;float kw=0.;vec3 all=vec3(0.);
+for(int i=-6;i<=6;i++){float k=exp(-float(i*i)/14.);vec4 t=fb(uv+dir*float(i));s+=t.rgb*t.a*k;ws+=t.a*k;kw+=k;all+=t.rgb*k;}
+gl_FragColor=vec4(ws>.0005?s/ws:all/kw,ws/kw);}`;
+      // Composite: you over the blurred room (or the picture) with a soft edge a couple of pixels wide. On the edge,
+      // the colour is eased towards the average of the nearby pixels that are clearly you, which removes the room
+      // and the dark rim webcams add next to bright clothes, without patches.
+      const fs = `precision mediump float;varying vec2 uv;uniform sampler2D vid,alp,bg,blr,loc;uniform vec2 vpx;uniform float bb;
+float al(vec2 p){return texture2D(alp,vec2(p.x,1.-p.y)).r;}
+void main(){vec3 c=texture2D(vid,uv).rgb;float r=al(uv);
+vec3 room=texture2D(blr,vec2(uv.x,1.-uv.y)).rgb;
+
+/* a picture sits a little tighter round you than blur (as Google Meet does) */
+float a=bb>.5?smoothstep(.29,.645,r):smoothstep(.32,.67,r);
+/* on the soft edge, a pixel that looks just like the room behind you (a white board) is room, not you: fade it out,
+   so no glowing halo of the real room shows around you */
+vec4 lr=texture2D(loc,vec2(uv.x,1.-uv.y));
+float sim=1.-smoothstep(.07,.24,min(length(c-room),lr.a>.05?length(c-lr.rgb):9.));a*=1.-sim*(1.-smoothstep(.75,.97,a));
+vec3 b=bb>.5?room:texture2D(bg,uv).rgb;
+float z=smoothstep(.05,.3,r)*(1.-smoothstep(.75,.97,r));
+if(z>.01){vec3 s=vec3(0.);float ws=0.;
+for(int i=-2;i<=2;i++){for(int j=-2;j<=2;j++){vec2 o=uv+vec2(float(i),float(j))*vpx*1.5;float k=smoothstep(.6,.95,al(o));s+=texture2D(vid,o).rgb*k;ws+=k;}}
+if(ws>.3)c=mix(c,s/ws,z*.7);}
+/* picture: edge pixels are part you, part real room; take the room's colour (known from the room-only blur) back out,
+   so no fringe of the real room shows against the picture */
+if(bb<.5&&a>.01&&a<.99){vec3 F=clamp((c-(1.-a)*room)/max(a,.3),0.,1.);c=mix(c,F,(1.-a)*.85);}
+float e=(1.-a)*a*4.;vec3 f=mix(c,b,(bb>.5?.12:.03)*e);gl_FragColor=vec4(mix(b,f,a),1.);}`;
       const sh_ = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)); return x; };
       const prog = (f) => { const p = gl.createProgram(); gl.attachShader(p, sh_(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh_(gl.FRAGMENT_SHADER, f)); gl.linkProgram(p); return p; };
       const pG = prog(fsGuide);
       const pr = prog(fs);
+      const pD = prog(fsDown);
+      const pB = prog(fsBlur);
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-      [pG, pr].forEach((p) => { const l = gl.getAttribLocation(p, 'p'); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 0, 0); });
+      [pG, pr, pD, pB].forEach((p) => { const l = gl.getAttribLocation(p, 'p'); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 0, 0); });
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
       const mkTex = (unit) => {
         const t = gl.createTexture();
@@ -1225,30 +1369,76 @@ vec3 f=mix(c,b,.14*e);gl_FragColor=vec4(mix(b,f,a),1.);}`;
       const tBg = mkTex(2);
       const tAlp = mkTex(3);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gw, gh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      const fb = gl.createFramebuffer();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tAlp, 0);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      const mkFb = (tex) => {
+        const f = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        return f;
+      };
+      const fb = mkFb(tAlp);
+      // Quarter-size blur buffers (A and B, used in turn).
+      const bw = Math.max(32, Math.round(w / 4));
+      const bh = Math.max(18, Math.round(hh / 4));
+      const tA = mkTex(4);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, bw, bh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      const tB = mkTex(5);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, bw, bh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      const fbA = mkFb(tA);
+      const fbB = mkFb(tB);
+      // A lightly blurred copy of the room only (no you): the local room colour right next to you, used to recognise
+      // room pixels on your edge (a white board) and fade them out.
+      const tC = mkTex(6);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, bw, bh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      const fbC = mkFb(tC);
+      gl.useProgram(pD);
+      gl.uniform1i(gl.getUniformLocation(pD, 'vid'), 0);
+      gl.uniform1i(gl.getUniformLocation(pD, 'alp'), 3);
+      gl.uniform2f(gl.getUniformLocation(pD, 'vpx'), 1 / w, 1 / hh);
+      gl.useProgram(pB);
+      const uSrc = gl.getUniformLocation(pB, 'src');
+      const uDir = gl.getUniformLocation(pB, 'dir');
       gl.useProgram(pG);
       gl.uniform1i(gl.getUniformLocation(pG, 'vid'), 0);
       gl.uniform1i(gl.getUniformLocation(pG, 'msk'), 1);
-      gl.uniform2f(gl.getUniformLocation(pG, 'gpx'), 1 / gw, 1 / gh);
+      const uGpx = gl.getUniformLocation(pG, 'gpx');
+      const uRoi = gl.getUniformLocation(pG, 'roi');
+      const uLim = gl.getUniformLocation(pG, 'lim');
+      const uShf = gl.getUniformLocation(pG, 'shf');
+      const uBnd = gl.getUniformLocation(pG, 'bnd');
+      const uRad = gl.getUniformLocation(pG, 'rad');
+      gl.uniform1f(uRad, 1.8);
+      gl.uniform2f(uGpx, 1 / gw, 1 / gh);
+      // Change the edge-detail resolution (quality levels).
+      const setGuide = (n) => {
+        gw = Math.min(w, n);
+        gh = Math.round(gw * hh / w);
+        gl.activeTexture(gl.TEXTURE3);
+        gl.bindTexture(gl.TEXTURE_2D, tAlp);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gw, gh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.useProgram(pG);
+        gl.uniform2f(uGpx, 1 / gw, 1 / gh);
+      };
+      const setTier = (t) => {
+        t = Math.max(0, Math.min(TIERS.length - 1, t));
+        if (t === tier) return;
+        tier = t;
+        lastTierChange = performance.now();
+        goodWins = badWins = 0;
+        if (Math.min(w, TIERS[t].guide) !== gw) setGuide(TIERS[t].guide);
+      };
+      this.quality = () => ({ tier, roi: { ...roi }, vel: vel.slice() }); // for testing
+      this.setTier = setTier;
       gl.useProgram(pr);
       gl.uniform1i(gl.getUniformLocation(pr, 'vid'), 0);
       gl.uniform1i(gl.getUniformLocation(pr, 'bg'), 2);
       gl.uniform1i(gl.getUniformLocation(pr, 'alp'), 3);
-      gl.uniform1f(gl.getUniformLocation(pr, 'bb'), bgCanvas ? 0 : 1);
-      // Blur strength (the slider): the blur is worked out from a small copy of the frame; a smaller copy = stronger
-      // blur. 0 = light (about 300 px wide), 1 = strong (about 40 px wide). Changes live, no restart.
-      const uBpx = gl.getUniformLocation(pr, 'bpx');
-      const setAmount = (amt) => {
-        if (!blurCanvas) return;
-        const bw = Math.round(300 - 260 * Math.max(0, Math.min(1, amt)));
-        blurCanvas.width = bw;
-        blurCanvas.height = Math.max(8, Math.round(bw * hh / w));
-        gl.useProgram(pr);
-        gl.uniform2f(uBpx, 1 / bw, 1 / blurCanvas.height);
-      };
+      gl.uniform1i(gl.getUniformLocation(pr, 'blr'), 4);
+      gl.uniform1i(gl.getUniformLocation(pr, 'loc'), 6);
+      gl.uniform1f(gl.getUniformLocation(pr, 'bb'), blurOn ? 1 : 0);
+      // Blur strength (the slider): the spacing of the blur samples. 0 = light, 1 = strong. Changes live.
+      let step = 2;
+      const setAmount = (amt) => { step = 0.6 + 2.0 * Math.max(0, Math.min(1, amt)); };
       setAmount(S.blurAmt);
       this.setAmount = setAmount;
       gl.uniform2f(gl.getUniformLocation(pr, 'vpx'), 1 / w, 1 / hh);
@@ -1275,58 +1465,135 @@ vec3 f=mix(c,b,.14*e);gl_FragColor=vec4(mix(b,f,a),1.);}`;
           // Like Google Meet: the cut-out is worked out for every camera frame, so it always matches the picture
           // (a cut-out from an earlier frame shows a halo when you move). Slower computers without graphics
           // acceleration for the detector do it every other frame.
-          const segNow = studio || !this.cpu || performance.now() - lastSeg > 62;
-          if (segNow) { lastSeg = performance.now(); sctx.drawImage(video, 0, 0, sw, sh); }
-          if (!studio && segNow) this.segmenter.segmentForVideo(small, performance.now(), (res) => {
+          const t0 = performance.now();
+          const segNow = studio || t0 - lastSeg >= TIERS[tier].every;
+          if (segNow) {
+            lastSeg = t0;
+            mroi = { x: roi.x, y: roi.y, w: roi.w, h: roi.h };
+            sctx.drawImage(video, roi.x * w, roi.y * hh, roi.w * w, roi.h * hh, 0, 0, sw, sh);
+          }
+          if (!studio && segNow) this.segmenter.segmentForVideo(small, t0, (res) => {
             const ms = res.confidenceMasks;
             const bgConf = ms[0].getAsFloat32Array();
             // Person = 1 - background (multiclass category 0 is background; the basic model's single mask is the person).
-            for (let i = 0; i < mask.length; i++) {
-              const pers = this.multiclass ? 1 - bgConf[i] : bgConf[i];
-              // Steady when still, quick to follow when moving.
-              const k = havePrev ? Math.min(.9, Math.max(.35, Math.abs(pers - prev[i]) * 2.2)) : 1;
-              const v = prev[i] + (pers - prev[i]) * k;
-              prev[i] = v;
-              grow[i] = v * 255;
-            }
-            havePrev = true;
-            // A soft safety margin: the ring just outside the cut-out gets part of its neighbour's value (fading out),
-            // so ears and the sides of the hair survive without a band of unblurred room around the head.
-            for (let y = 0; y < sh; y++) {
-              for (let x = 0; x < sw; x++) {
+            // (2) Steady outline: how much are you moving? (share of your pixels that changed a lot, plus how fast you
+            // were moving at the last detection). Edge wobble from the detector is a small share; real movement is big.
+            motCtx.drawImage(video, 0, 0, MW, MH);
+            const md = motCtx.getImageData(0, 0, MW, MH).data;
+            const lum = new Float32Array(MW * MH);
+            for (let i = 0; i < lum.length; i++) lum[i] = (md[i * 4] * 0.299 + md[i * 4 + 1] * 0.587 + md[i * 4 + 2] * 0.114) / 255;
+            for (let i = 0; i < lum.length; i++) motRaw[i] = motPrev ? sstep(.025, .1, Math.abs(lum[i] - motPrev[i])) : 0;
+            motPrev = lum;
+            // Spread each moving cell to its neighbours, so the whole edge of a moving arm counts as moving.
+            for (let y = 0; y < MH; y++) {
+              for (let x = 0; x < MW; x++) {
                 let m = 0;
                 for (let dy = -1; dy <= 1; dy++) {
-                  const yy = Math.min(sh - 1, Math.max(0, y + dy)) * sw;
-                  for (let dx = -1; dx <= 1; dx++) { const g = grow[yy + Math.min(sw - 1, Math.max(0, x + dx))]; if (g > m) m = g; }
+                  const yy = Math.min(MH - 1, Math.max(0, y + dy)) * MW;
+                  for (let dx = -1; dx <= 1; dx++) m = Math.max(m, motRaw[yy + Math.min(MW - 1, Math.max(0, x + dx))]);
                 }
-                const own = grow[y * sw + x];
-                mask[y * sw + x] = Math.max(own, m * 0.45);
+                motMap[y * MW + x] = m;
               }
             }
+            let big = 0, body = 0;
+            for (let i = 0; i < mask.length; i++) {
+              const pers = this.multiclass ? 1 - bgConf[i] : bgConf[i];
+              if (pers > .5 || prev[i] > .5) { body++; if (Math.abs(pers - prev[i]) > .5) big++; }
+            }
+            const moving = Math.max(sstep(.025, .09, body ? big / body : 0),
+              sstep(.0012, .006, Math.max(Math.abs(vel[0]) * 0.5, Math.abs(vel[1]), Math.abs(vel[2])) * 33));
+            // Sitting still: the outline changes slowly and evenly (detector wobble is averaged away, so no bits of room
+            // pop in and out). Moving: it follows straight away, so there is no gap.
+            for (let i = 0; i < mask.length; i++) {
+              const pers = this.multiclass ? 1 - bgConf[i] : bgConf[i];
+              const mx = Math.min(MW - 1, Math.floor((mroi.x + ((i % sw) + 0.5) / sw * mroi.w) * MW));
+              const my = Math.min(MH - 1, Math.floor((mroi.y + (Math.floor(i / sw) + 0.5) / sh * mroi.h) * MH));
+              const k = havePrev ? .28 + .7 * Math.max(moving, motMap[my * MW + mx]) : 1;
+              const v = prev[i] + (pers - prev[i]) * k;
+              prev[i] = v;
+              mask[i] = v * 255;
+            }
+            havePrev = true;
           });
+          // Crop box and slide used for this frame's mask (the mask still belongs to the box it was made in).
+          gl.useProgram(pG);
+          gl.uniform4f(uRoi, mroi.x, mroi.y, mroi.w, mroi.h);
+          // The edge filter's window follows the mask's detail: a tighter crop = finer mask = smaller window.
+          gl.uniform1f(uRad, 1.8 * Math.max(0.5, Math.max(mroi.w, mroi.h * hh / w) * (this.radK || 1)));
+          gl.uniform4f(uLim, mroi.x <= 0.001 ? -9 : 0, mroi.y <= 0.001 ? -9 : 0, mroi.x + mroi.w >= 0.999 ? 9 : 1, mroi.y + mroi.h >= 0.999 ? 9 : 1);
+          gl.uniform2f(uBnd, bandY[0], bandY[1]);
+          if (segNow) {
+            gl.uniform3f(uShf, 0, 0, 0);
+          } else {
+            const ago = t0 - segAt;
+            const sl = (v) => Math.max(-0.06, Math.min(0.06, v * ago));
+            gl.uniform3f(uShf, sl(vel[0]), sl(vel[1]), sl(vel[2]));
+          }
           gl.activeTexture(gl.TEXTURE1);
           gl.bindTexture(gl.TEXTURE_2D, tMsk);
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, sw, sh, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, mask);
+          // Plan the next crop after this frame's mask is uploaded with the box it was made in.
+          if (segNow && !studio) { track(t0); segAt = t0; }
           gl.activeTexture(gl.TEXTURE0);
           gl.bindTexture(gl.TEXTURE_2D, tVid);
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, video);
-          if (blurCanvas) {
-            // Strong blur; drawn slightly oversize so the edges of the frame don't darken.
-            bctx.drawImage(video, 0, 0, blurCanvas.width, blurCanvas.height);
-            gl.activeTexture(gl.TEXTURE2);
-            gl.bindTexture(gl.TEXTURE_2D, tBg);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, blurCanvas);
-          }
           gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
           gl.viewport(0, 0, gw, gh);
           gl.useProgram(pG);
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          gl.activeTexture(gl.TEXTURE3);
+          gl.bindTexture(gl.TEXTURE_2D, tAlp);
+          {
+            // Room without you, quarter size (blur mode shows it; picture mode uses it to clean your edge colour) -> A; then blur A->B (across), B->A (down), twice.
+            gl.viewport(0, 0, bw, bh);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbA);
+            gl.useProgram(pD);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl.useProgram(pB);
+            // First round with tightly packed samples (removes fine detail such as book spines, so the wide rounds
+            // that follow cannot leave stripes), then two wide rounds; together the same strength as the slider.
+            const s0 = Math.min(step, 1);
+            const s1 = Math.sqrt(Math.max(0.01, (2 * step * step - s0 * s0) / 2));
+            [s0, s1, s1].forEach((st, n) => {
+              gl.bindFramebuffer(gl.FRAMEBUFFER, fbB);
+              gl.uniform1i(uSrc, 4);
+              gl.uniform2f(uDir, st / bw, 0);
+              gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+              gl.bindFramebuffer(gl.FRAMEBUFFER, fbA);
+              gl.uniform1i(uSrc, 5);
+              gl.uniform2f(uDir, 0, st / bh);
+              gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+              if (n === 0) {
+                // Keep the lightly blurred room (after the fine round) as the local room colour.
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fbC);
+                gl.uniform1i(uSrc, 4);
+                gl.uniform2f(uDir, 0, 0);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+              }
+            });
+          }
           gl.bindFramebuffer(gl.FRAMEBUFFER, null);
           gl.viewport(0, 0, w, hh);
           gl.useProgram(pr);
           gl.activeTexture(gl.TEXTURE3);
           gl.bindTexture(gl.TEXTURE_2D, tAlp);
           gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          // (4) Quality levels: step down after two slow 30-frame windows (or three very slow frames in a row),
+          // step back up after five quick windows. One second between changes.
+          const cost = performance.now() - t0;
+          slowRun = cost > 60 ? slowRun + 1 : 0;
+          winCost += cost; winN++;
+          const now = performance.now();
+          if (this.fixedTier != null) { if (tier !== this.fixedTier) setTier(this.fixedTier); } else if (slowRun >= 4 && now - lastTierChange > 1000) { setTier(tier + 1); slowRun = 0; winCost = winN = 0; }
+          if (winN >= 30 && this.fixedTier == null) {
+            const avg = winCost / winN;
+            winCost = winN = 0;
+            if (avg > 30) { badWins++; goodWins = 0; } else if (avg < 14) { goodWins++; badWins = 0; } else { goodWins = badWins = 0; }
+            if (now - lastTierChange > 1000) {
+              if (badWins >= 2) setTier(tier + 1);
+              else if (goodWins >= 5 && !(this.cpu && tier <= 1)) setTier(tier - 1);
+            }
+          }
         }
         } catch (err) {
           // Never leave a frozen picture or an endless error loop: hand over to the safe path once.
@@ -1397,11 +1664,26 @@ function blurSlider() {
     h('small', { class: 'ends' }, h('span', {}, 'Light'), h('span', {}, 'Strong')));
 }
 
+// Studio look sliders (0..1): brightness and zoom. Remembered on this device; applied live.
+function setLookValue(key, v) {
+  S[key] = Math.max(0, Math.min(1, v));
+  lsSet(key === 'lookZoom' ? 'lookZoom2' : key, String(S[key]));
+  if (!S.look) setLook(true);
+}
+function lookSliders() {
+  const one = (key, ic, label, lo, hi) => h('label', { class: 'lm-menu-item lm-slider' }, icon(ic), h('span', {}, label),
+    h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(S[key] * 100), 'aria-label': label,
+      oninput: (e) => setLookValue(key, e.target.value / 100) }),
+    h('small', { class: 'ends' }, h('span', {}, lo), h('span', {}, hi)));
+  return [one('lookBright', 'sun', 'Brightness', 'Darker', 'Brighter'), one('lookZoom', 'search', 'Zoom', 'Full view', 'Close')];
+}
+
 async function setBackground(mode) {
   S.bg = mode;
   S.blur = mode === 'blur';
   lsSet('bg', mode);
   lsSet('blur', S.blur ? '1' : '0');
+  if (S.room) renderBar();
   await rebuildCam();
   if (S.room) renderBar();
 }
@@ -1639,7 +1921,9 @@ const Backgrounds = {
 async function setSmooth(on) {
   S.smooth = on;
   lsSet('smooth', on ? '1' : '0');
+  if (S.room) renderBar(); // show the new state straight away (the button stayed lit, so a second click turned it back on)
   await rebuildCam();
+  if (S.room) renderBar();
   if (on && !Smooth.ok) toast('Smooth skin is not available on this device.');
 }
 
@@ -1846,9 +2130,14 @@ async function reconcile() {
     return;
   }
   reconciling = true;
+  // The media connection this pass works on. If it is replaced meanwhile (reconnect after a network drop), the
+  // pass stops: results from the old connection must never be stored, or those videos would stay black.
+  const pc0 = S.pc;
+  const stale = () => S.pc !== pc0;
   try {
     do {
       reconcileAgain = false;
+      if (stale()) return;
       const L = layout();
       const desired = new Map();
       for (const p of roomPeers()) {
@@ -1863,24 +2152,34 @@ async function reconcile() {
       if (remove.length) {
         remove.forEach(([k]) => S.pulls.delete(k));
         await closeTransceivers(remove.map(([, v]) => v.tr).filter(Boolean));
+        if (stale()) return;
       }
       if (add.length) {
         const res = await pull(add.map(([, v]) => v));
+        if (stale()) return;
         add.forEach(([k, v], i) => {
           if (!res[i]) return;
           S.pulls.set(k, { ...v, ...res[i] });
           if (v.kind === 'audio') attachAudio(v.cid, res[i].track);
         });
       }
-      for (const [k, d] of relayer) await switchLayer(S.pulls.get(k), d.rid).catch((e) => console.warn('layer', e));
+      for (const [k, d] of relayer) {
+        if (stale()) return;
+        await switchLayer(S.pulls.get(k), d.rid).catch((e) => console.warn('layer', e));
+      }
       renderTiles();
       renderStage();
     } while (reconcileAgain);
   } catch (e) {
-    console.error('reconcile', e);
-    setTimeout(reconcile, 3000);
+    // A reconnect in the middle is expected (the new connection reconciles itself); anything else is retried.
+    if (!stale()) {
+      console.error('reconcile', e);
+      setTimeout(reconcile, 3000);
+    }
   } finally {
     reconciling = false;
+    // The new connection may have asked to reconcile while this old pass was still running: do it now.
+    if (stale() && S.pc) setTimeout(reconcile, 0);
   }
 }
 
@@ -2116,7 +2415,10 @@ function renderBar() {
           h('div', { class: 'lm-pop menu' }, blurSlider()))),
       btn('Background', 'image', () => Backgrounds.open(), { cls: bgOn ? 'on' : '', title: bgOn ? 'Background: ' + bgLabel() : 'Put a picture behind you' }),
       btn('Smooth skin', 'sparkles', () => setSmooth(!S.smooth), { cls: S.smooth ? 'on' : '', pressed: !!S.smooth, title: 'A gentle touch-up of your camera' }),
-      btn('Studio look', 'sun', () => setLook(!S.look), { cls: S.look ? 'on' : '', pressed: !!S.look, title: 'Better lighting, and keeps you centred and framed' })),
+      h('div', { class: 'lm-split' + (S.look ? ' on' : '') },
+        btn('Studio look', 'sun', () => setLook(!S.look), { cls: S.look ? 'on' : '', pressed: !!S.look, title: 'A brighter picture and a slight zoom' }),
+        pop(h('button', { class: 'lm-split-lang', title: 'Brightness and zoom', 'aria-label': 'Brightness and zoom', onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
+          h('div', { class: 'lm-pop menu' }, ...lookSliders())))),
     h('div', { class: 'lm-group' },
       btn(S.hand ? 'Lower hand' : 'Raise hand', 'hand', () => { send({ t: 'hand', up: !S.hand }); if (!S.hand) S.handCount++; }, { cls: S.hand ? 'on hand' : '', pressed: S.hand }),
       pop(btn('React', 'smile', toggleOpen),
@@ -2159,6 +2461,7 @@ function renderBar() {
           item('image', bgOn ? 'Background: ' + bgLabel() : 'Background picture', () => Backgrounds.open()),
           check('sparkles', 'Smooth skin', S.smooth, setSmooth),
           check('sun', 'Studio look', S.look, setLook),
+          ...lookSliders(),
           h('span', { class: 'lm-more2' },
             item('users', 'People', () => { S.tab = 'people'; togglePanel(true); renderSide(); }),
             item('notes', 'Notes', () => { S.tab = 'notes'; togglePanel(true); renderSide(); }),
@@ -3215,7 +3518,8 @@ const CC = {
   })(),
   save() {
     lsSet('cc', JSON.stringify(this.prefs));
-    send({ t: 'ccprefs', on: S.ccOn, show: this.prefs.show || this.prefs.speak });
+    // show '' = "Original language": the server sends no translations to this person.
+    send({ t: 'ccprefs', on: S.ccOn, show: this.prefs.show || '' });
   },
   need: false, // someone in my room reads captions → I should upload my speech
   serverAsr: true, // flips off if the server can't recognise (then browser finals are used)
@@ -3229,7 +3533,9 @@ const CC = {
     return !!this.prefs.show && this.prefs.show.split('-')[0] !== String(lang).split('-')[0];
   },
   onCaption(m) {
-    if (m.lang && m.cid !== S.cid && !m.translated && speakerLang.get(m.cid) !== m.lang) {
+    // The language each person speaks, for "Hear only the translated voice". Only finished lines count (they carry
+    // the language the server detected from the speech).
+    if (m.final && m.lang && m.cid !== S.cid && !m.translated && speakerLang.get(m.cid) !== m.lang) {
       speakerLang.set(m.cid, m.lang);
       const el = audioEls.get(m.cid);
       if (el) el.volume = origVolume(m.cid, false);
@@ -3244,17 +3550,19 @@ const CC = {
     }
     this.live.delete(m.cid);
     if (m.translated) {
+      // "Original language" chosen: keep captions exactly as spoken.
+      if (!this.prefs.show) return undefined;
       // Replace the original line we showed while waiting for the translation.
       // Update the original line in place, wherever it is. A late translation of an older line must never pull the
       // bubble back to a speaker who has already finished (that made captions jump between people).
       const line = this.lines.find((l) => l.id === m.id) || this.history.find((l) => l.id === m.id);
-      if (line) Object.assign(line, { text: m.text, original: m.original, translated: true, pending: false });
+      const spoken = !!(line && line.translated); // already translated on this computer and read aloud
+      if (line) Object.assign(line, { text: m.text, original: line.original || m.original, translated: true, pending: false });
       else this.push({ id: m.id, cid: m.cid, name: m.name, text: m.text, original: m.original, translated: true });
-      Voice.say(m.text, this.showLang(), m.cid);
+      if (!spoken) Voice.say(m.text, this.showLang(), m.cid);
     } else {
       const pending = this.wantsTranslation(m.lang);
       this.push({ id: m.id, cid: m.cid, name: m.name, text: m.text, original: null, translated: false, pending });
-      if (!pending && Voice.on() && m.cid !== S.cid && this.prefs.show) Voice.say(m.text, this.showLang(), m.cid);
       if (pending) Local.translate(m, this);
     }
     this.render();
@@ -3418,7 +3726,8 @@ const Voice = {
   // True while a translation is being read aloud here, and for a moment after (room echo, recogniser lag).
   speaking() { return this.queue > 0 || ('speechSynthesis' in window && speechSynthesis.speaking) || Date.now() - this.endAt < 700; },
   on() {
-    return S.ccOn && CC.prefs.voice && 'speechSynthesis' in window;
+    // Only with a translation language chosen ("Original language" has nothing to read aloud).
+    return S.ccOn && CC.prefs.voice && !!CC.prefs.show && 'speechSynthesis' in window;
   },
   // Throw away whatever the browser recogniser has half-heard (it may contain the translated voice); it restarts itself.
   flushRecog() {
@@ -3628,6 +3937,8 @@ function toggleCaptions(on = !S.ccOn) {
   const firstTime = on && !lsGet('cc');
   S.ccOn = on;
   CC.save();
+  applyOrigVolume(); // captions off: nobody stays muted for a translation that is no longer read
+  if (!on && 'speechSynthesis' in window) speechSynthesis.cancel();
   Recog.sync();
   CC.render();
   renderBar();
@@ -3665,6 +3976,7 @@ const LangPicker = {
     }
     if (!S.ccOn) S.ccOn = true;
     CC.save();
+    applyOrigVolume();
     Recog.sync();
     renderBar();
     this.q = '';
@@ -4198,7 +4510,7 @@ async function prejoin() {
             h('span', { class: 'go' }, icon('next'))) : '',
           camOk ? h('label', { class: 'lm-opt' },
             h('span', { class: 'ic' }, icon('sun')),
-            h('span', { class: 'tx' }, h('b', {}, 'Studio look'), h('small', {}, 'Better lighting, and keeps you centred and framed')),
+            h('span', { class: 'tx' }, h('b', {}, 'Studio look'), h('small', {}, 'A brighter picture and a slight zoom')),
             h('input', { type: 'checkbox', checked: S.look, onchange: (e) => setLook(e.target.checked) }), h('span', { class: 'sw' })) : '',
           camOk ? h('label', { class: 'lm-opt' },
             h('span', { class: 'ic' }, icon('sparkles')),

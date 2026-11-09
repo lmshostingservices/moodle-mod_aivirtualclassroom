@@ -117,7 +117,8 @@ class pptx {
         }
         $profile = 'file://' . $dir . '/profile';
         $cmd = escapeshellarg($bin) . ' -env:UserInstallation=' . escapeshellarg($profile) .
-            ' --headless --norestore --convert-to ' . $to . ' --outdir ' . escapeshellarg($dir) . ' ' . escapeshellarg($in) . ' 2>&1';
+            ' --headless --norestore --convert-to ' . $to . ' --outdir ' . escapeshellarg($dir) .
+            ' ' . escapeshellarg($in) . ' 2>&1';
         if (function_exists('exec')) {
             $prefix = is_executable('/usr/bin/timeout') ? '/usr/bin/timeout 120 ' : '';
             @exec($prefix . $cmd, $out, $rc);

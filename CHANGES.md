@@ -1,5 +1,44 @@
 # Changes
 
+## 2.5.1 (2026120400)
+- Captions and translation now follow the language people actually speak. Each spoken phrase is checked for its language, so a guest (or anyone) whose browser is set to a different language than they speak is still captioned, translated and read aloud correctly. Before, their speech was labelled with their browser's language, so listeners got it untranslated, the translated voice stayed silent and "Hear only the translated voice" did not mute them. After two phrases in another language, the speaker's microphone language switches by itself and they see a short note.
+- "Original language" captions now really stay exactly as spoken (no translations are sent to people who chose it).
+- "Hear only the translated voice" only mutes a speaker while a translation is being read to you: choosing Original language or turning captions off brings everyone's sound straight back.
+- A sentence is never read aloud twice when the on-device and the server translation both arrive.
+- Captions keep working when people move between breakout rooms.
+- Learners' and guests' video is as smooth as the trainer's: their smaller video layers (shown while slides, a screen, the whiteboard or speaker view are on) now run at 30 and 24 frames a second instead of 24 and 15.
+- Studio look no longer softens and darkens the edges of the picture (it looked like blur with blur turned off). It now only brightens and zooms; the room around you stays sharp.
+- Audio and video recover by themselves after a network drop or a media server restart: the room keeps reconnecting quietly for about two minutes (straight away when the network comes back) instead of giving up after a few seconds and asking for a page reload.
+- After a reconnect, every camera shows again (a video request still running on the old connection could leave someone's picture black).
+- New price: 1 LMS Labs credit = 2 learner-hours (5¢ per learner-hour); trainers are still never counted. AI quizzes are now included in the class price (the quiz maker no longer shows a credit cost). The attendance report and settings use the new rate.
+- Moodle code checker: language strings in the required order (no warnings).
+- A trainer's camera turns back on by itself when cameras are allowed again after "Audio only". Learners get a note that they can turn theirs on.
+
+## 2.5.0 (2026120300)
+- Background blur and pictures: the real room no longer shows through around you. Colour can only nudge the outline slightly beyond where the person detector puts you, and soft edge pixels that look just like the room behind you (a white board) are faded out, so there is no glowing halo. This works for any white or bright thing behind you (board, wall, door): each frame the edge is compared with the colour of the room right behind you, not a stored picture of your room.
+- Waving your hands or arms no longer lets the room show: wherever the camera sees movement, the outline follows straight away, while still areas stay steady.
+- The outline sits a touch closer to your head; with a background picture it sits a little closer again than with blur, and the room's colour is taken out of your edge pixels.
+- Studio look: Brightness and Zoom sliders (the small arrow next to Studio look, also in More). Brightness goes from darker than the camera to brighter; Zoom goes from the full camera view (the new default) to close.
+- Valid Moodle version number (the unreleased 2.0.1 build used an impossible date).
+
+## 2.0.1 (unreleased)
+- Steady outline around you with background blur or a picture: the room no longer pops through around your head. When you sit still the outline is averaged evenly over time, so detector wobble disappears; when you move it follows straight away.
+- Even outline shape: the edge follows the smooth shape of your head and shoulders, nudged by colour edges, so a dark room behind dark hair no longer bulges into it.
+- Quality levels step down less eagerly, so the cut-out keeps running on every camera frame on ordinary laptops.
+- Code passes the Moodle Code Checker with no errors and no warnings (long lines wrapped), as the release CI requires.
+- Studio look: a fixed, slight zoom (no camera movement or re-framing) and a brighter picture.
+
+## 2.0.0 (unreleased)
+- Background blur rebuilt the way Google describes theirs: an even, smooth blur all the way up to you (no blocky patches next to your head). The room is shrunk to a quarter, you are left out of it, and it is blurred evenly in several rounds, so you are never smeared into it.
+- Even, smooth outline around your head and shoulders: the edge filter is now a joint bilateral filter (as in Google's design) instead of one that caught on patterns in the room, and the square-stepped safety margin is replaced by a smooth, slightly wider soft edge. Ears are kept.
+- Edge colour clean-up without patches (no more small squares of room in your hair or mosaic on glasses and hands), for blur and background pictures.
+- Fixed: Smooth skin and Studio look could not be turned off from the toolbar (the button stayed lit, so the next click turned it back on).
+- Sharper, steadier background blur and background pictures:
+  - Crop around you: the person detector looks at a box around you instead of the whole room, so your ears, shoulders and hands get up to twice the detail. The box follows you and widens straight away if you move towards its edge.
+  - Two-speed smoothing: you appear in the cut-out quickly and the room returns slowly when you sit still (no flicker); both become near instant when you move, so fast movement leaves no gap.
+  - Movement prediction: on frames where the detector does not run (slower computers), the cut-out is slid along with your movement instead of lagging behind.
+  - Automatic quality levels: the effect measures itself and steps down on slow computers (fewer detector runs, lighter edge work) and back up when there is room, so video stays smooth.
+
 ## 1.1.8 (2026112900)
 - Background blur to the Google Meet standard (from Google's published design):
   - Blur uses the inverted cut-out: only background pixels feed the blur, weighted by how much they are background, so you are never smeared into the blurred room (no light or dark ghost around your head and shoulders).

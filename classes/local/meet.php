@@ -87,7 +87,12 @@ class meet {
     private static function site_key(string $siteid, string $apikey, string $server): string {
         global $CFG;
         $for = sha1($siteid . '|' . $apikey . '|' . $server);
-        if (get_config('mod_aivirtualclassroom', 'sitekeyfor') === $for && ($k = (string)get_config('mod_aivirtualclassroom', 'sitekey')) !== '') {
+        if (
+            get_config(
+                'mod_aivirtualclassroom',
+                'sitekeyfor'
+            ) === $for && ($k = (string)get_config('mod_aivirtualclassroom', 'sitekey')) !== ''
+        ) {
             return $k;
         }
         $last = (int)get_config('mod_aivirtualclassroom', 'sitekeytried');
@@ -440,13 +445,23 @@ class meet {
      * @param bool $reassignall Also re-balance students that already have a room.
      * @return int Number of students assigned.
      */
-    public static function auto_assign(stdClass $aivirtualclassroom, context_module $context, int $courseid, bool $reassignall = false): int {
+    public static function auto_assign(
+        stdClass $aivirtualclassroom,
+        context_module $context,
+        int $courseid,
+        bool $reassignall = false
+    ): int {
         global $DB;
         $teachers = self::teachers($aivirtualclassroom, $context);
         if (!$teachers) {
             return 0;
         }
-        $existing = $DB->get_records_menu('aivirtualclassroom_bo', ['aivirtualclassroomid' => $aivirtualclassroom->id], '', 'userid, teacherid');
+        $existing = $DB->get_records_menu(
+            'aivirtualclassroom_bo',
+            ['aivirtualclassroomid' => $aivirtualclassroom->id],
+            '',
+            'userid, teacherid'
+        );
         if ($reassignall) {
             $DB->delete_records('aivirtualclassroom_bo', ['aivirtualclassroomid' => $aivirtualclassroom->id]);
             $existing = [];
@@ -502,7 +517,8 @@ class meet {
         } else if ($row) {
             $DB->set_field('aivirtualclassroom_bo', 'teacherid', $teacherid, ['id' => $row->id]);
         } else {
-            $DB->insert_record('aivirtualclassroom_bo', (object)['aivirtualclassroomid' => $aivirtualclassroomid, 'userid' => $userid, 'teacherid' => $teacherid]);
+            $DB->insert_record('aivirtualclassroom_bo', (object)['aivirtualclassroomid' => $aivirtualclassroomid,
+                'userid' => $userid, 'teacherid' => $teacherid]);
         }
     }
 
@@ -530,7 +546,8 @@ class meet {
      */
     public static function hand_raises(int $aivirtualclassroomid, int $userid): int {
         global $DB;
-        return $DB->count_records('aivirtualclassroom_hand', ['aivirtualclassroomid' => $aivirtualclassroomid, 'userid' => $userid]);
+        return $DB->count_records('aivirtualclassroom_hand', ['aivirtualclassroomid' => $aivirtualclassroomid,
+            'userid' => $userid]);
     }
 
     /**
@@ -559,7 +576,10 @@ class meet {
             }
             switch ($ev->type ?? '') {
                 case 'attendance':
-                    if ($DB->record_exists('aivirtualclassroom_att', ['aivirtualclassroomid' => $aivirtualclassroom->id, 'eid' => $eid])) {
+                    if (
+                        $DB->record_exists('aivirtualclassroom_att', ['aivirtualclassroomid' => $aivirtualclassroom->id,
+                        'eid' => $eid])
+                    ) {
                         break;
                     }
                     $DB->insert_record('aivirtualclassroom_att', (object)[
@@ -572,11 +592,15 @@ class meet {
                     $stored++;
                     break;
                 case 'hand':
-                    if ($DB->record_exists('aivirtualclassroom_hand', ['aivirtualclassroomid' => $aivirtualclassroom->id, 'eid' => $eid])) {
+                    if (
+                        $DB->record_exists('aivirtualclassroom_hand', ['aivirtualclassroomid' => $aivirtualclassroom->id,
+                        'eid' => $eid])
+                    ) {
                         break;
                     }
                     $DB->insert_record('aivirtualclassroom_hand', (object)[
-                        'aivirtualclassroomid' => $aivirtualclassroom->id, 'userid' => $uid, 'eid' => $eid, 'timecreated' => (int)$ev->ts,
+                        'aivirtualclassroomid' => $aivirtualclassroom->id, 'userid' => $uid, 'eid' => $eid,
+                        'timecreated' => (int)$ev->ts,
                     ]);
                     $touched[$uid] = true;
                     $stored++;
@@ -586,10 +610,14 @@ class meet {
                     if ($roomkey === '') {
                         break;
                     }
-                    $params = ['aivirtualclassroomid' => $aivirtualclassroom->id, 'session' => (int)($ev->session ?? 0), 'roomkey' => $roomkey];
+                    $params = ['aivirtualclassroomid' => $aivirtualclassroom->id, 'session' => (int)($ev->session ?? 0),
+                        'roomkey' => $roomkey];
                     $row = $DB->get_record('aivirtualclassroom_snote', $params);
                     $fields = ['roomname' => substr(clean_param((string)($ev->name ?? ''), PARAM_TEXT), 0, 255),
-                        'content' => clean_param((string)($ev->text ?? ''), PARAM_TEXT), 'editedby' => $uid, 'timemodified' => time()];
+                        'content' => clean_param(
+                            (string)($ev->text ?? ''),
+                            PARAM_TEXT
+                        ), 'editedby' => $uid, 'timemodified' => time()];
                     if ($row) {
                         $DB->update_record('aivirtualclassroom_snote', (object)(['id' => $row->id] + $fields));
                     } else {
@@ -601,13 +629,17 @@ class meet {
                     $key = (string)($ev->key ?? '');
                     if (
                         strpos($key, self::config()->siteid . '/' . $cmid . '/') !== 0 ||
-                            $DB->record_exists('aivirtualclassroom_rec', ['aivirtualclassroomid' => $aivirtualclassroom->id, 'storagekey' => $key])
+                            $DB->record_exists('aivirtualclassroom_rec', ['aivirtualclassroomid' => $aivirtualclassroom->id,
+                                'storagekey' => $key])
                     ) {
                         break;
                     }
                     $id = $DB->insert_record('aivirtualclassroom_rec', (object)[
                         'aivirtualclassroomid' => $aivirtualclassroom->id, 'storagekey' => $key, 'bytes' => (int)$ev->bytes,
-                        'seconds' => (int)$ev->seconds, 'mimetype' => substr(clean_param((string)($ev->mime ?? ""), PARAM_TEXT), 0, 100),
+                        'seconds' => (int)$ev->seconds, 'mimetype' => substr(clean_param(
+                            (string)($ev->mime ?? ""),
+                            PARAM_TEXT
+                        ), 0, 100),
                         'createdby' => $uid, 'timestarted' => (int)$ev->started, 'timecreated' => time(), 'notified' => 0,
                     ]);
                     if (!empty($aivirtualclassroom->emailrecordings)) {

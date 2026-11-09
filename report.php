@@ -42,9 +42,14 @@ $PAGE->set_url($url);
 $PAGE->set_title(get_string('attendancereport', 'mod_aivirtualclassroom'));
 $PAGE->set_heading(format_string($course->fullname));
 
-$att = $DB->get_records_sql('SELECT userid, SUM(seconds) AS secs, COUNT(1) AS sessions, SUM(bytesrx) AS rx, MIN(timejoined) AS firstjoin,
-                                    MAX(timeleft) AS lastleft
-                               FROM {aivirtualclassroom_att} WHERE aivirtualclassroomid = ? GROUP BY userid', [$aivirtualclassroom->id]);
+$att = $DB->get_records_sql(
+    'SELECT userid, SUM(seconds) AS secs, COUNT(1) AS sessions, SUM(bytesrx) AS rx,
+            MIN(timejoined) AS firstjoin, MAX(timeleft) AS lastleft
+       FROM {aivirtualclassroom_att}
+      WHERE aivirtualclassroomid = ?
+   GROUP BY userid',
+    [$aivirtualclassroom->id]
+);
 $hands = $DB->get_records_sql_menu(
     'SELECT userid, COUNT(1) FROM {aivirtualclassroom_hand} WHERE aivirtualclassroomid = ? GROUP BY userid',
     [$aivirtualclassroom->id]
@@ -75,7 +80,10 @@ foreach ($users as $u) {
         $state,
     ];
 }
-$head = [get_string('fullname'), get_string('minutesattended', 'mod_aivirtualclassroom'), get_string('connections', 'mod_aivirtualclassroom'),
+$head = [get_string('fullname'), get_string('minutesattended', 'mod_aivirtualclassroom'), get_string(
+    'connections',
+    'mod_aivirtualclassroom'
+),
     get_string('handraises', 'mod_aivirtualclassroom'),
     get_string('datareceived', 'mod_aivirtualclassroom'),
     get_string('firstjoined', 'mod_aivirtualclassroom'),
@@ -104,7 +112,11 @@ if ($aivirtualclassroom->completionhandraises) {
     $rules[] = get_string('completiondetail:handraises', 'mod_aivirtualclassroom', $aivirtualclassroom->completionhandraises);
 }
 if ($rules) {
-    echo html_writer::tag('p', get_string('completionrules', 'mod_aivirtualclassroom', implode('; ', $rules)), ['class' => 'text-muted']);
+    echo html_writer::tag(
+        'p',
+        get_string('completionrules', 'mod_aivirtualclassroom', implode('; ', $rules)),
+        ['class' => 'text-muted']
+    );
 }
 $trainerids = array_map('intval', array_keys(\mod_aivirtualclassroom\local\meet::teachers($aivirtualclassroom, $context, false)));
 $learnersecs = 0;
@@ -120,7 +132,7 @@ foreach (
 }
 echo html_writer::tag('p', get_string('learnersummary', 'mod_aivirtualclassroom', (object)[
     'hours' => format_float($learnersecs / 3600, 1),
-    'credits' => format_float($learnersecs / 10800, 1),
+    'credits' => format_float($learnersecs / 7200, 1),
 ]), ['class' => 'alert alert-info']);
 echo html_writer::div(html_writer::link(
     new moodle_url($url, ['download' => 1]),

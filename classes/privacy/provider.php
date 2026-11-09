@@ -31,7 +31,10 @@ use core_privacy\local\request\writer;
  * @copyright  2026 LMS Hosting Services
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider implements \core_privacy\local\metadata\provider, \core_privacy\local\request\core_userlist_provider, \core_privacy\local\request\plugin\provider {
+class provider implements
+    \core_privacy\local\metadata\provider,
+    \core_privacy\local\request\core_userlist_provider,
+    \core_privacy\local\request\plugin\provider {
     /** @var array Tables keyed by user field. */
     const TABLES = [
         'aivirtualclassroom_att' => 'userid',
@@ -144,7 +147,11 @@ class provider implements \core_privacy\local\metadata\provider, \core_privacy\l
             return;
         }
         foreach (self::TABLES as $table => $field) {
-            $userlist->add_from_sql($field, "SELECT {$field} FROM {{$table}} WHERE aivirtualclassroomid = :id", ['id' => $cm->instance]);
+            $userlist->add_from_sql(
+                $field,
+                "SELECT {$field} FROM {{$table}} WHERE aivirtualclassroomid = :id",
+                ['id' => $cm->instance]
+            );
         }
         $userlist->add_from_sql(
             'teacherid',
@@ -186,8 +193,15 @@ class provider implements \core_privacy\local\metadata\provider, \core_privacy\l
             $data->handraises = array_values(array_map(function ($r) {
                 return \core_privacy\local\request\transform::datetime($r->timecreated);
             }, $DB->get_records('aivirtualclassroom_hand', ['aivirtualclassroomid' => $cm->instance, 'userid' => $userid])));
-            $data->notes = (string)$DB->get_field('aivirtualclassroom_note', 'content', ['aivirtualclassroomid' => $cm->instance, 'userid' => $userid]);
-            $data->recordingscreated = $DB->count_records('aivirtualclassroom_rec', ['aivirtualclassroomid' => $cm->instance, 'createdby' => $userid]);
+            $data->notes = (string)$DB->get_field(
+                'aivirtualclassroom_note',
+                'content',
+                ['aivirtualclassroomid' => $cm->instance, 'userid' => $userid]
+            );
+            $data->recordingscreated = $DB->count_records(
+                'aivirtualclassroom_rec',
+                ['aivirtualclassroomid' => $cm->instance, 'createdby' => $userid]
+            );
             writer::with_context($context)->export_data([], $data);
         }
     }
@@ -210,7 +224,10 @@ class provider implements \core_privacy\local\metadata\provider, \core_privacy\l
         if (!$cm) {
             return;
         }
-        foreach (['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_bo', 'aivirtualclassroom_note'] as $table) {
+        foreach (
+            ['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_bo',
+            'aivirtualclassroom_note'] as $table
+        ) {
             $DB->delete_records($table, ['aivirtualclassroomid' => $cm->instance]);
         }
         $DB->set_field('aivirtualclassroom_snote', 'editedby', 0, ['aivirtualclassroomid' => $cm->instance]);
@@ -261,7 +278,10 @@ class provider implements \core_privacy\local\metadata\provider, \core_privacy\l
         }
         [$insql, $params] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
         $params['id'] = $cm->instance;
-        foreach (['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_bo', 'aivirtualclassroom_note'] as $table) {
+        foreach (
+            ['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_bo',
+            'aivirtualclassroom_note'] as $table
+        ) {
             $DB->delete_records_select($table, "aivirtualclassroomid = :id AND userid $insql", $params);
         }
         $DB->set_field_select('aivirtualclassroom_snote', 'editedby', 0, "aivirtualclassroomid = :id AND editedby $insql", $params);

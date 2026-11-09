@@ -41,8 +41,16 @@ $title = format_string($aivirtualclassroom->name, true, ['context' => $context])
 $sections = [];
 if ($type === 'shared') {
     $ismod = has_capability('mod/aivirtualclassroom:moderate', $context);
-    $rows = $DB->get_records('aivirtualclassroom_snote', ['aivirtualclassroomid' => $aivirtualclassroom->id], 'session ASC, roomkey ASC');
-    $myroom = 't' . (int)$DB->get_field('aivirtualclassroom_bo', 'teacherid', ['aivirtualclassroomid' => $aivirtualclassroom->id, 'userid' => $USER->id]);
+    $rows = $DB->get_records(
+        'aivirtualclassroom_snote',
+        ['aivirtualclassroomid' => $aivirtualclassroom->id],
+        'session ASC, roomkey ASC'
+    );
+    $myroom = 't' . (int)$DB->get_field(
+        'aivirtualclassroom_bo',
+        'teacherid',
+        ['aivirtualclassroomid' => $aivirtualclassroom->id, 'userid' => $USER->id]
+    );
     foreach ($rows as $r) {
         $basekey = preg_replace('/^tx-/', '', $r->roomkey);
         if (!$ismod && $basekey !== 'main' && $basekey !== $myroom) {
@@ -55,7 +63,11 @@ if ($type === 'shared') {
     }
     $label = get_string('sharednotes', 'mod_aivirtualclassroom');
 } else {
-    $content = (string)$DB->get_field('aivirtualclassroom_note', 'content', ['aivirtualclassroomid' => $aivirtualclassroom->id, 'userid' => $USER->id]);
+    $content = (string)$DB->get_field(
+        'aivirtualclassroom_note',
+        'content',
+        ['aivirtualclassroomid' => $aivirtualclassroom->id, 'userid' => $USER->id]
+    );
     $sections[] = [fullname($USER), $content];
     $label = get_string('mynotes', 'mod_aivirtualclassroom');
 }

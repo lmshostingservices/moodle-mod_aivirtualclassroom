@@ -49,7 +49,7 @@ $fs = get_file_storage();
 if (optional_param('remove', 0, PARAM_BOOL)) {
     $fs->delete_area_files($usercontext->id, 'mod_aivirtualclassroom', 'avatar');
 } else {
-    $data = (string)optional_param('data', '', PARAM_RAW); // Pipeline-ignore: PARAM_RAW base64 image data URL, decoded and redrawn by GD below.
+    $data = (string)optional_param('data', '', PARAM_RAW); // Pipeline-ignore: PARAM_RAW image, redrawn by GD.
     if (!preg_match('~^data:image/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$~', $data, $m)) {
         $out(['error' => get_string('avatar_bad', 'mod_aivirtualclassroom')], 400);
     }

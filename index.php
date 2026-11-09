@@ -33,7 +33,10 @@ $PAGE->set_title(get_string('modulenameplural', 'mod_aivirtualclassroom'));
 $PAGE->set_heading(format_string($course->fullname));
 $PAGE->set_pagelayout('incourse');
 
-\mod_aivirtualclassroom\event\course_module_instance_list_viewed::create(['context' => context_course::instance($course->id)])->trigger();
+$event = \mod_aivirtualclassroom\event\course_module_instance_list_viewed::create([
+    'context' => context_course::instance($course->id),
+]);
+$event->trigger();
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('modulenameplural', 'mod_aivirtualclassroom'));

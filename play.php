@@ -34,7 +34,12 @@ $aivirtualclassroom = $DB->get_record('aivirtualclassroom', ['id' => $cm->instan
 require_login($course, false, $cm);
 $context = context_module::instance($cm->id);
 require_capability('mod/aivirtualclassroom:view', $context);
-$rec = $DB->get_record('aivirtualclassroom_rec', ['id' => $rid, 'aivirtualclassroomid' => $aivirtualclassroom->id], '*', MUST_EXIST);
+$rec = $DB->get_record(
+    'aivirtualclassroom_rec',
+    ['id' => $rid, 'aivirtualclassroomid' => $aivirtualclassroom->id],
+    '*',
+    MUST_EXIST
+);
 
 $PAGE->set_url('/mod/aivirtualclassroom/play.php', ['id' => $cm->id, 'r' => $rec->id]);
 $PAGE->set_title(format_string($aivirtualclassroom->name));
@@ -51,8 +56,16 @@ echo html_writer::tag('video', '', [
     'style' => 'width:100%;max-width:1100px;max-height:72vh;background:#000;border-radius:8px',
 ]);
 echo html_writer::div(
-    html_writer::link(meet::playback_url($rec->storagekey, true), get_string('download'), ['class' => 'btn btn-secondary mr-2 me-2']) .
-    html_writer::link(new moodle_url('/mod/aivirtualclassroom/view.php', ['id' => $cm->id]), get_string('back'), ['class' => 'btn btn-link']),
+    html_writer::link(
+        meet::playback_url($rec->storagekey, true),
+        get_string('download'),
+        ['class' => 'btn btn-secondary mr-2 me-2']
+    ) .
+    html_writer::link(
+        new moodle_url('/mod/aivirtualclassroom/view.php', ['id' => $cm->id]),
+        get_string('back'),
+        ['class' => 'btn btn-link']
+    ),
     'mt-3'
 );
 echo $OUTPUT->footer();

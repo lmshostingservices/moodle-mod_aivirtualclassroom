@@ -4,9 +4,9 @@ AI Virtual Classroom is a live class activity for Moodle™ from LMS Labs. Insta
 
 ## Pricing
 
-Pay as you go from your LMS Labs credits. **1 credit (US$0.10) = 3 learner-hours.** Trainers are never counted. One fee covers everything: Full HD video, recordings kept for 12 months, captions and translation, AI class summaries, AI note summaries and every other feature. No subscription, no cap, and nothing to pay when you are not teaching.
+Pay as you go from your LMS Labs credits. **1 credit (US$0.10) = 2 learner-hours (5¢ per learner-hour).** Trainers are never counted. One fee covers everything: Full HD video, recordings kept for 12 months, captions and translation, AI class summaries, AI note summaries, AI quizzes and every other feature. No subscription, no cap, and nothing to pay when you are not teaching.
 
-Example: 3 learners in a 1-hour class = 1 credit.
+Example: 2 learners in a 1-hour class = 1 credit; 30 learners for an hour = 15 credits (US$1.50).
 
 ## Setup (2 minutes)
 

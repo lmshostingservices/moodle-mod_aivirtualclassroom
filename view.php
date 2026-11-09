@@ -46,7 +46,8 @@ $canmoderate = has_capability('mod/aivirtualclassroom:moderate', $context);
 
 // Delete a recording (moderators).
 if ($deleterec && $canmoderate) {
-    $rec = $DB->get_record('aivirtualclassroom_rec', ['id' => $deleterec, 'aivirtualclassroomid' => $aivirtualclassroom->id], '*', MUST_EXIST);
+    $rec = $DB->get_record('aivirtualclassroom_rec', ['id' => $deleterec,
+        'aivirtualclassroomid' => $aivirtualclassroom->id], '*', MUST_EXIST);
     if ($confirm && confirm_sesskey()) {
         meet::delete_remote($rec->storagekey);
         $DB->delete_records('aivirtualclassroom_rec', ['id' => $rec->id]);
@@ -82,7 +83,8 @@ if (!meet::is_configured()) {
 $now = time();
 if ($aivirtualclassroom->timeopen) {
     $end = $aivirtualclassroom->timeopen + $aivirtualclassroom->duration * 60;
-    $a = (object)['start' => userdate($aivirtualclassroom->timeopen), 'duration' => format_time($aivirtualclassroom->duration * 60)];
+    $a = (object)['start' => userdate($aivirtualclassroom->timeopen),
+        'duration' => format_time($aivirtualclassroom->duration * 60)];
     echo html_writer::tag('p', get_string('scheduledfor', 'mod_aivirtualclassroom', $a), ['class' => 'lead']);
     if ($now > $end) {
         echo $OUTPUT->notification(get_string('sessionended', 'mod_aivirtualclassroom'), 'info');
@@ -93,7 +95,11 @@ if ($aivirtualclassroom->timeopen) {
 $early = $aivirtualclassroom->timeopen && $now < $aivirtualclassroom->timeopen - 900;
 if (has_capability('mod/aivirtualclassroom:join', $context) && meet::is_configured()) {
     if ($early && !$canmoderate) {
-        echo $OUTPUT->notification(get_string('notopenyet', 'mod_aivirtualclassroom', userdate($aivirtualclassroom->timeopen - 900)), 'info');
+        echo $OUTPUT->notification(get_string(
+            'notopenyet',
+            'mod_aivirtualclassroom',
+            userdate($aivirtualclassroom->timeopen - 900)
+        ), 'info');
     } else {
         $joinurl = new moodle_url('/mod/aivirtualclassroom/room.php', ['id' => $cm->id]);
         echo html_writer::div(
@@ -109,7 +115,11 @@ if ($canmoderate && $aivirtualclassroom->guestaccess && $aivirtualclassroom->gue
     $copy = get_string('copylink', 'mod_aivirtualclassroom');
     $copied = get_string('copied', 'mod_aivirtualclassroom');
     echo html_writer::div(
-        html_writer::tag('label', get_string('guestlink', 'mod_aivirtualclassroom'), ['for' => 'aivirtualclassroom-guestlink', 'class' => 'form-label']) .
+        html_writer::tag(
+            'label',
+            get_string('guestlink', 'mod_aivirtualclassroom'),
+            ['for' => 'aivirtualclassroom-guestlink', 'class' => 'form-label']
+        ) .
         html_writer::div(
             html_writer::empty_tag('input', ['type' => 'text', 'readonly' => 'readonly', 'id' => 'aivirtualclassroom-guestlink',
                 'value' => $guesturl, 'class' => 'form-control', 'onclick' => 'this.select()']) .
@@ -134,10 +144,12 @@ if ($canmoderate && $aivirtualclassroom->guestaccess && $aivirtualclassroom->gue
                     var s = b.querySelector('span');
                     s.textContent = " . json_encode($copied) . ";
                     b.classList.replace('btn-primary', 'btn-success');
-                    setTimeout(function () { s.textContent = " . json_encode($copy) . "; b.classList.replace('btn-success', 'btn-primary'); }, 2000);
+                    setTimeout(function () { s.textContent = " . json_encode($copy) . "; b.classList.replace('btn-success',
+                        'btn-primary'); }, 2000);
                 };
                 if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(i.value).then(done, function () { i.select(); document.execCommand('copy'); done(); });
+                    navigator.clipboard.writeText(i.value).then(done,
+                        function () { i.select(); document.execCommand('copy'); done(); });
                 } else {
                     i.select(); document.execCommand('copy'); done();
                 }
@@ -168,7 +180,10 @@ $summaries = $DB->get_records_select(
 if ($summaries) {
     $out = html_writer::tag('h3', get_string('aisummary', 'mod_aivirtualclassroom'), ['class' => 'h5']);
     foreach ($summaries as $s) {
-        $title = s($s->roomname) . ' · ' . userdate($s->session ?: $s->timemodified, get_string('strftimedatetimeshort', 'core_langconfig'));
+        $title = s($s->roomname) . ' · ' . userdate($s->session ?: $s->timemodified, get_string(
+            'strftimedatetimeshort',
+            'core_langconfig'
+        ));
         $out .= html_writer::tag('div', html_writer::tag('div', $title, ['class' => 'small text-muted mb-1']) .
             html_writer::tag('div', nl2br(s($s->content))), ['class' => 'border rounded p-3 mb-2 bg-light']);
     }

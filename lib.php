@@ -22,8 +22,6 @@
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Supported features.
  *
@@ -130,7 +128,8 @@ function aivirtualclassroom_delete_instance($id) {
         }
     }
     foreach (
-        ['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_rec', 'aivirtualclassroom_bo', 'aivirtualclassroom_note',
+        ['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_rec', 'aivirtualclassroom_bo',
+            'aivirtualclassroom_note',
             'aivirtualclassroom_snote'] as $table
     ) {
         $DB->delete_records($table, ['aivirtualclassroomid' => $id]);
@@ -214,7 +213,10 @@ function aivirtualclassroom_reset_userdata($data) {
     if (!empty($data->reset_aivirtualclassroom_all)) {
         $ids = $DB->get_fieldset_select('aivirtualclassroom', 'id', 'course = ?', [$data->courseid]);
         foreach ($ids as $id) {
-            foreach (['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_bo', 'aivirtualclassroom_note', 'aivirtualclassroom_snote'] as $table) {
+            foreach (
+                ['aivirtualclassroom_att', 'aivirtualclassroom_hand', 'aivirtualclassroom_bo',
+                'aivirtualclassroom_note', 'aivirtualclassroom_snote'] as $table
+            ) {
                 $DB->delete_records($table, ['aivirtualclassroomid' => $id]);
             }
         }
