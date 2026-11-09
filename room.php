@@ -81,6 +81,7 @@ $config = [
     'cmid' => (int)$cm->id,
     'quizUrl' => $ismod ? (new moodle_url('/mod/aivirtualclassroom/quiz.php', ['id' => $cm->id]))->out(false) : null,
     'guestUrl' => $guesturl,
+    'guestInvite' => $guesturl ? meet::guest_invite($aivirtualclassroom, $course, $context, $guesturl) : null,
     'title' => format_string($aivirtualclassroom->name, true, ['context' => $context]),
     'course' => format_string($course->shortname, true, ['context' => context_course::instance($course->id)]),
     'returnUrl' => (new moodle_url('/mod/aivirtualclassroom/view.php', ['id' => $cm->id]))->out(false),

@@ -1,5 +1,9 @@
 # Changes
 
+## 2.5.3 (2026121000)
+- New "Copy invite" for teachers: one click copies a ready-to-send guest invitation (class name, course, start time with time zone, the join link, and how to join without a login) to paste into an email or chat. It's on the activity page next to Copy link, in the meeting's top bar (Guest invite) and in the People panel (Copy guest invite).
+- Copying works on every browser (falls back when the clipboard isn't available).
+
 ## 2.5.2 (2026120500)
 - Translated captions are one clean line in your own language: the original is no longer repeated underneath, and a line waiting for its translation shows "…" instead of flashing the speaker's words (the original appears only if no translation arrives within about 3 seconds).
 - Works with the LiveLab service update of 10 Nov 2026: translations now arrive in about half a second to a second (the AI model the service used before was retired by its provider, so translations, the translated voice and AI summaries had stopped working).

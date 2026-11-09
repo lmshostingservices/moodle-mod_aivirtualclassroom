@@ -114,6 +114,8 @@ if ($canmoderate && $aivirtualclassroom->guestaccess && $aivirtualclassroom->gue
     $guesturl = \mod_aivirtualclassroom\local\meet::guest_url($cm->id, $aivirtualclassroom->guestkey)->out(false);
     $copy = get_string('copylink', 'mod_aivirtualclassroom');
     $copied = get_string('copied', 'mod_aivirtualclassroom');
+    $invite = \mod_aivirtualclassroom\local\meet::guest_invite($aivirtualclassroom, $course, $context, $guesturl);
+    $copyinvite = get_string('guestinvite', 'mod_aivirtualclassroom');
     echo html_writer::div(
         html_writer::tag(
             'label',
@@ -126,8 +128,15 @@ if ($canmoderate && $aivirtualclassroom->guestaccess && $aivirtualclassroom->gue
             html_writer::tag(
                 'button',
                 $OUTPUT->pix_icon('t/copy', '') . ' ' . html_writer::span($copy),
-                ['type' => 'button', 'class' => 'btn btn-primary', 'id' => 'aivirtualclassroom-copyguest', 'title' => $copy,
+                ['type' => 'button', 'class' => 'btn btn-outline-primary', 'id' => 'aivirtualclassroom-copyguest', 'title' => $copy,
                 'aria-label' => $copy]
+            ) .
+            html_writer::tag(
+                'button',
+                $OUTPUT->pix_icon('t/email', '') . ' ' . html_writer::span($copyinvite),
+                ['type' => 'button', 'class' => 'btn btn-primary', 'id' => 'aivirtualclassroom-copyinvite',
+                'title' => get_string('guestinvitecopied', 'mod_aivirtualclassroom'), 'aria-label' => $copyinvite,
+                'data-invite' => $invite]
             ),
             'input-group'
         ),
@@ -136,24 +145,33 @@ if ($canmoderate && $aivirtualclassroom->guestaccess && $aivirtualclassroom->gue
     );
     $PAGE->requires->js_amd_inline("
         (function () {
-            var b = document.getElementById('aivirtualclassroom-copyguest');
             var i = document.getElementById('aivirtualclassroom-guestlink');
-            if (!b || !i) { return; }
-            b.addEventListener('click', function () {
-                var done = function () {
-                    var s = b.querySelector('span');
-                    s.textContent = " . json_encode($copied) . ";
-                    b.classList.replace('btn-primary', 'btn-success');
-                    setTimeout(function () { s.textContent = " . json_encode($copy) . "; b.classList.replace('btn-success',
-                        'btn-primary'); }, 2000);
-                };
-                if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(i.value).then(done,
-                        function () { i.select(); document.execCommand('copy'); done(); });
-                } else {
-                    i.select(); document.execCommand('copy'); done();
-                }
-            });
+            var hook = function (b, text, label, cls) {
+                if (!b) { return; }
+                b.addEventListener('click', function () {
+                    var t = text();
+                    var done = function () {
+                        var s = b.querySelector('span');
+                        s.textContent = " . json_encode($copied) . ";
+                        b.classList.replace(cls, 'btn-success');
+                        setTimeout(function () { s.textContent = label; b.classList.replace('btn-success', cls); }, 2000);
+                    };
+                    var fallback = function () {
+                        var ta = document.createElement('textarea');
+                        ta.value = t; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done();
+                    };
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(t).then(done, fallback);
+                    } else {
+                        fallback();
+                    }
+                });
+            };
+            var c = document.getElementById('aivirtualclassroom-copyinvite');
+            hook(document.getElementById('aivirtualclassroom-copyguest'), function () { return i.value; }, " .
+                json_encode($copy) . ", 'btn-outline-primary');
+            hook(c, function () { return c.getAttribute('data-invite'); }, " . json_encode($copyinvite) . ", 'btn-primary');
         })();
     ");
 }

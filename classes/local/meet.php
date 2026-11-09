@@ -340,6 +340,31 @@ class meet {
     }
 
     /**
+     * A ready-to-send guest invitation (class name, time, link and how to join) for teachers to paste into an email or chat.
+     *
+     * @param \stdClass $instance The activity record.
+     * @param \stdClass $course
+     * @param \context $context The activity context.
+     * @param string $guesturl
+     * @return string
+     */
+    public static function guest_invite(\stdClass $instance, \stdClass $course, \context $context, string $guesturl): string {
+        $a = (object)[
+            'title' => format_string($instance->name, true, ['context' => $context]),
+            'course' => format_string($course->fullname, true, ['context' => \context_course::instance($course->id)]),
+        ];
+        $lines = [get_string('guestinvite_intro', 'mod_aivirtualclassroom', $a)];
+        if (!empty($instance->timeopen)) {
+            $when = userdate($instance->timeopen, get_string('strftimedaydatetime', 'langconfig')) . ' (' . usertimezone() . ')';
+            $lines[] = get_string('guestinvite_when', 'mod_aivirtualclassroom', $when);
+        }
+        $lines[] = get_string('guestinvite_link', 'mod_aivirtualclassroom', $guesturl);
+        $how = (int)$instance->waitingroom >= 1 ? 'guestinvite_howwait' : 'guestinvite_how';
+        $lines[] = get_string($how, 'mod_aivirtualclassroom');
+        return implode("\n\n", $lines);
+    }
+
+    /**
      * Short-lived signed playback URL for a recording.
      *
      * @param string $key

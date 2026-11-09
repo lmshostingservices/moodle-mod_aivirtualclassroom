@@ -2326,26 +2326,29 @@ function renderTop() {
 }
 setInterval(() => S.bo.active && S.bo.closesAt && renderTop(), 1000);
 
+// Copy text, with a fallback for browsers or pages where the async clipboard isn't allowed.
+function copyText(text, msg) {
+  const done = () => toast(msg);
+  const fallback = () => {
+    const ta = h('textarea', { style: 'position:fixed;left:-9999px' }); ta.value = text; document.body.append(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { window.prompt('Copy this:', text); }
+    ta.remove();
+  };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback);
+  else fallback();
+}
+
 // Teachers: the class link in the top bar with a Copy button, so it's easy to paste into an email or chat.
 // Learners open it in Moodle and press Join. When guests are allowed, the guest invite link can be copied too.
 function classLink() {
   const url = C.returnUrl;
   const short = url.replace(/^https?:\/\//, '');
-  const copy = (link, what) => {
-    const done = () => toast(`${what} copied. Paste it into an email or chat.`);
-    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(link).then(done, () => fallback());
-    else fallback();
-    function fallback() {
-      const ta = h('textarea', { style: 'position:fixed;left:-9999px' }); ta.value = link; document.body.append(ta); ta.select();
-      try { document.execCommand('copy'); done(); } catch (e) { window.prompt('Copy this link:', link); }
-      ta.remove();
-    }
-  };
+  const copy = (text, what) => copyText(text, `${what} copied. Paste it into an email or chat.`);
   return h('span', { class: 'lm-linkchip' },
     icon('link'),
     h('span', { class: 'url', title: url }, short),
     h('button', { class: 'cp', title: 'Copy the class link', 'aria-label': 'Copy the class link', onclick: () => copy(url, 'Class link') }, 'Copy'),
-    C.guestUrl ? h('button', { class: 'cp', title: 'Copy the guest invite link (for people without a Moodle login)', onclick: () => copy(C.guestUrl, 'Guest invite link') }, 'Guest link') : '');
+    C.guestUrl ? h('button', { class: 'cp', title: 'Copy a ready-to-send guest invite (class name, time, link and how to join) for people without a Moodle login', onclick: () => copy(C.guestInvite || C.guestUrl, 'Guest invite') }, 'Guest invite') : '');
 }
 
 function setStatus(t) {
@@ -2598,7 +2601,7 @@ function PeopleTab(body) {
           h('button', { onclick: () => send({ t: 'muteAll' }) }, icon('micOff'), 'Mute all'),
           h('button', { onclick: () => send({ t: 'lower', cid: '*' }) }, icon('hand'), 'Lower all'),
           h('button', { onclick: () => send({ t: 'lock', on: !S.locked }) }, icon('lock'), S.locked ? 'Unlock' : 'Lock')),
-        C.guestUrl ? h('button', { onclick: () => navigator.clipboard.writeText(C.guestUrl).then(() => toast('Guest invite link copied')) }, icon('link'), 'Copy guest invite link') : ''));
+        C.guestUrl ? h('button', { onclick: () => copyText(C.guestInvite || C.guestUrl, 'Guest invite copied. Paste it into an email or chat.') }, icon('link'), 'Copy guest invite') : ''));
   }
   const groups = {};
   for (const x of S.participants.values()) (groups[x.room] = groups[x.room] || []).push(x);
