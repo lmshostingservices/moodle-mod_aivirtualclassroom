@@ -771,3 +771,7 @@ input[type=search]::-webkit-search-cancel-button:hover { background: var(--chalk
 .lm-menu-item.lm-slider > span { grid-area: t; }
 .lm-menu-item.lm-slider input[type=range] { grid-area: r; width: 100%; accent-color: var(--pencil, #f6b93b); }
 .lm-menu-item.lm-slider .ends { grid-area: e; display: flex; justify-content: space-between; font-size: 11px; color: var(--fog); }
+/* A fresh caption after a pause: a quick, gentle pop so it reads as a new line of speech. */
+#lm-captions .cap.fresh .cin { animation: cap-fresh .35s ease-out; }
+@keyframes cap-fresh { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #lm-captions .cap.fresh .cin { animation: none; } }

@@ -76,7 +76,7 @@ class custom_completion extends activity_custom_completion {
                 $rules['completionattendance'] ?? 0
             ),
             'completionhandraises' => get_string(
-                'completiondetail:handraises',
+                (int)($rules['completionhandraises'] ?? 0) === 1 ? 'completiondetail:handraise' : 'completiondetail:handraises',
                 'mod_aivirtualclassroom',
                 $rules['completionhandraises'] ?? 0
             ),

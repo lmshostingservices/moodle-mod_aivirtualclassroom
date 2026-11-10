@@ -1,5 +1,10 @@
 # Changes
 
+## 2.5.4 (2026121100)
+- Captions in another language now show **only the translation**. The speaker's own words never appear, even when the translation is slow, when the speaker's browser is set to a different language, or when the browser has no on-device translator ("…" shows while it's on its way, and a line whose translation never arrives is left out).
+- After a pause of a few seconds, the next words start a **fresh caption** instead of being added to the sentence from several seconds ago. Continuous speech still flows in one caption.
+- Completion now says "Raise hand once" instead of "Raise hand 1 times".
+
 ## 2.5.3 (2026121000)
 - New "Copy invite" for teachers: one click copies a ready-to-send guest invitation (class name, course, start time with time zone, the join link, and how to join without a login) to paste into an email or chat. It's on the activity page next to Copy link, in the meeting's top bar (Guest invite) and in the People panel (Copy guest invite).
 - Copying works on every browser (falls back when the clipboard isn't available).

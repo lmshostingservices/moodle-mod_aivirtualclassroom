@@ -3544,8 +3544,10 @@ const CC = {
       if (el) el.volume = origVolume(m.cid, false);
     }
     if (!m.final) {
-      if (this.wantsTranslation(m.lang)) {
-        this.live.set(m.cid, { name: m.name, text: '…', ts: Date.now() }); // don't show foreign-language half sentences
+      // Don't show half sentences in another language. The speaker's own language setting can be wrong (a guest
+      // whose browser says English but who speaks Spanish), so the language detected from their speech counts too.
+      if (this.wantsTranslation(m.lang) || this.wantsTranslation(speakerLang.get(m.cid) || m.lang)) {
+        this.live.set(m.cid, { name: m.name, text: '…', ts: Date.now() });
       } else {
         this.live.set(m.cid, { name: m.name, text: m.text, ts: Date.now() });
       }
@@ -3560,12 +3562,12 @@ const CC = {
       // bubble back to a speaker who has already finished (that made captions jump between people).
       const line = this.lines.find((l) => l.id === m.id) || this.history.find((l) => l.id === m.id);
       const spoken = !!(line && line.translated); // already translated on this computer and read aloud
-      if (line) Object.assign(line, { text: m.text, original: line.original || m.original, translated: true, pending: false });
+      if (line) Object.assign(line, { text: m.text, original: line.original || m.original, translated: true, pending: false, untranslated: false });
       else this.push({ id: m.id, cid: m.cid, name: m.name, text: m.text, original: m.original, translated: true });
       if (!spoken) Voice.say(m.text, this.showLang(), m.cid);
     } else {
       const pending = this.wantsTranslation(m.lang);
-      this.push({ id: m.id, cid: m.cid, name: m.name, text: m.text, original: null, translated: false, pending });
+      this.push({ id: m.id, cid: m.cid, name: m.name, text: m.text, original: null, translated: false, pending, lang: m.lang });
       if (pending) Local.translate(m, this);
     }
     this.render();
@@ -3626,6 +3628,15 @@ const CC = {
     this.dress(s);
     return s;
   },
+  // Start the bubble again (empty) for the same speaker: used after a pause.
+  fresh(s) {
+    s.parts = new Map();
+    s.done.data = '';
+    s.now.data = '';
+    s.el.classList.remove('fresh');
+    void s.el.offsetWidth; // restart the little "new caption" animation
+    s.el.classList.add('fresh');
+  },
   dress(s) {
     const p = S.participants.get(s.cid) || (s.cid === S.cid ? { name: ME.name, pic: ME.pic } : { name: s.name });
     const col = capColor(s.cid, s.name);
@@ -3648,6 +3659,8 @@ const CC = {
       if (l.slotted || l.cid === S.cid || now - l.ts > 10000) continue;
       const s = this.slotFor(l.cid, l.name);
       if (!s) continue;
+      // After a pause of a few seconds, the next words start a fresh caption instead of being added to old ones.
+      if (s.parts.size && l.ts - (s.spoke || 0) > PAUSE_MS) this.fresh(s);
       s.parts.set(l.id, l);
       if (s.parts.size > 4) s.parts.delete(s.parts.keys().next().value);
       s.ts = Math.max(s.ts, l.ts);
@@ -3658,6 +3671,7 @@ const CC = {
       if (cid === S.cid || now - l.ts > 6000 || !l.text) continue;
       const s = this.slotFor(cid, l.name);
       if (!s) continue;
+      if (s.parts.size && !s.live && l.ts - (s.spoke || 0) > PAUSE_MS) this.fresh(s);
       if (s.live !== l.text) s.spoke = now;
       s.live = l.text;
       s.ts = Math.max(s.ts, l.ts);
@@ -3666,9 +3680,9 @@ const CC = {
       const lv = this.live.get(s.cid);
       if (!lv || now - lv.ts > 6000) s.live = '';
       // Finished words: the last few sentences, kept short so the bubble stays two or three lines.
-      // A line waiting for its translation is not shown in the speaker's language (no flash of foreign words);
-      // the bubble shows "…" until the translation arrives (or the original, if none comes within ~3 s).
-      let done = [...s.parts.values()].filter((l) => !l.pending).map((l) => l.text).join(' ');
+      // Only lines in your own language are shown: a line waiting for its translation shows "…", and a line whose
+      // translation never arrives is left out, so the speaker's language never appears when you chose a translation.
+      let done = [...s.parts.values()].filter((l) => !l.pending && !l.untranslated).map((l) => l.text).join(' ');
       if (done.length > 260) done = '…' + done.slice(done.length - 260).replace(/^\S*\s/, '');
       const waiting = [...s.parts.values()].some((l) => l.pending);
       const live = s.live ? (done ? ' ' : '') + s.live : waiting ? (done ? ' ' : '') + '…' : '';
@@ -3697,6 +3711,8 @@ const CC = {
     box.hidden = !S.ccOn || !this.slots.some((s) => s.shown);
   },
 };
+// A pause this long (ms) between someone's sentences starts a fresh caption.
+const PAUSE_MS = 2500;
 // Caption colours: bright, readable on dark, never red. Same person, same colour, all class.
 const CAP_COLORS = ['#a46bff', '#3fa3ff', '#2fc46b', '#ff9f2e', '#ff5fb0', '#22c3c3', '#e2c227', '#8c9eff'];
 const capColor = (cid, name) => CAP_COLORS[[...String(name || cid)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % CAP_COLORS.length];
@@ -3708,10 +3724,8 @@ const Local = {
   async translate(m, cc) {
     await sleep(2500);
     const line = cc.lines.find((l) => l.id === m.id) || cc.history.find((l) => l.id === m.id);
-    if (!line || line.translated || !('Translator' in self)) {
-      if (line) line.pending = false;
-      return cc.render();
-    }
+    if (!line || line.translated) return cc.render();
+    if (!('Translator' in self)) return this.giveUp(line, cc);
     try {
       const pair = { sourceLanguage: m.lang.split('-')[0], targetLanguage: cc.showLang().split('-')[0] };
       const key = pair.sourceLanguage + '>' + pair.targetLanguage;
@@ -3720,8 +3734,15 @@ const Local = {
       Object.assign(line, { original: line.text, text: tr, translated: true, pending: false });
       Voice.say(tr, cc.showLang(), m.cid);
     } catch (e) {
-      line.pending = false;
+      return this.giveUp(line, cc);
     }
+    cc.render();
+  },
+  // No translation yet: keep waiting for the server's (it can still arrive), but after 6 s stop showing "…".
+  // The original is never shown to someone who asked for a translation.
+  async giveUp(line, cc) {
+    await sleep(3500);
+    if (!line.translated) Object.assign(line, { pending: false, untranslated: true });
     cc.render();
   },
 };

@@ -53,6 +53,7 @@ $string['completionattendance'] = 'Attend for at least (minutes)';
 $string['completionattendancegroup'] = 'Require attendance';
 $string['completionattendancegroup_help'] = 'The student must be connected to the meeting (main room or a breakout room) for at least this many minutes in total. Time from separate sessions and reconnections is added together.';
 $string['completiondetail:attendance'] = 'Attend for {$a} minutes';
+$string['completiondetail:handraise'] = 'Raise hand once';
 $string['completiondetail:handraises'] = 'Raise hand {$a} times';
 $string['completionhandraises'] = 'Raise hand at least (times)';
 $string['completionhandraisesgroup'] = 'Require hand raises';
