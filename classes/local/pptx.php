@@ -157,6 +157,12 @@ class pptx {
                 is_array($j) && !empty($j['error']) ? (string)$j['error'] : 'no response'
             );
         }
+        if (method_exists('\\local_clientportal\\api', 'record_lmslabs_call')) {
+            global $USER;
+            // Client Portal (when installed) bills the client when the service says it charged.
+            \local_clientportal\api::record_lmslabs_call((int)$USER->id, (int)\context_system::instance()->id,
+                'mod_aivirtualclassroom', $j, 0, 'Slides converted');
+        }
         $images = [];
         foreach ($j['slides'] as $s) {
             $data = base64_decode((string)($s['data'] ?? ''), true);

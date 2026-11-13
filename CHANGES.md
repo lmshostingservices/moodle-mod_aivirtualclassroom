@@ -1,5 +1,8 @@
 # Changes
 
+## 2.5.5 (2026121101)
+- Works with Client Portal 2.0.1 and later: each LMS Labs AI call made in a client's course, or by a client's people, is reported to the portal with the credits it used, so the site owner can see and invoice each client's usage. The service's own figure is used when its reply gives one; otherwise the plugin's published price. Calls that fail and polled jobs are never counted twice. Nothing changes on sites without Client Portal.
+
 ## 2.5.4 (2026121100)
 - Captions in another language now show **only the translation**. The speaker's own words never appear, even when the translation is slow, when the speaker's browser is set to a different language, or when the browser has no on-device translator ("…" shows while it's on its way, and a line whose translation never arrives is left out).
 - After a pause of a few seconds, the next words start a **fresh caption** instead of being added to the sentence from several seconds ago. Continuous speech still flows in one caption.

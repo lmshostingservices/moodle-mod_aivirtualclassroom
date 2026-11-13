@@ -91,4 +91,9 @@ if ($code === 402) {
 if ($code !== 200 || !is_array($j) || empty($j['questions'])) {
     $out(['error' => get_string('quiz_failed', 'mod_aivirtualclassroom')], 502);
 }
+// Client Portal (when installed) bills the client for what the service charged.
+if (method_exists('\\local_clientportal\\api', 'record_lmslabs_call')) {
+    \local_clientportal\api::record_lmslabs_call((int)$USER->id, (int)$context->id, 'mod_aivirtualclassroom',
+        ['charged' => (int)($j['charged'] ?? 0)], 0, 'Live quiz');
+}
 $out(['questions' => $j['questions'], 'charged' => (int)($j['charged'] ?? 0), 'balance' => $j['balance'] ?? null]);
