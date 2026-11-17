@@ -53,7 +53,9 @@ $PAGE->set_context($context);
 $PAGE->set_pagelayout('popup');
 $PAGE->set_title(format_string($aivirtualclassroom->name));
 
-if ($name !== '' && data_submitted()) {
+// Joining is a plain GET, like opening the invite link: it changes nothing in Moodle and only issues a
+// short-lived guest token, so there is no form submission to protect (and no session for a sesskey).
+if ($name !== '') {
     $guest = (object)['id' => 'g-' . random_string(12), 'name' => core_text::substr($name, 0, 60) . ' (' .
         get_string('guest') . ')'];
     $config = [
@@ -91,7 +93,9 @@ if ($name !== '' && data_submitted()) {
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(format_string($aivirtualclassroom->name));
-echo html_writer::start_tag('form', ['method' => 'post', 'action' => $url->out(false), 'class' => 'mt-3']);
+echo html_writer::start_tag('form', ['method' => 'get', 'action' => $url->out_omit_querystring(), 'class' => 'mt-3']);
+echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'id', 'value' => $cm->id]);
+echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'k', 'value' => $key]);
 echo html_writer::label(
     get_string('yourname', 'mod_aivirtualclassroom'),
     'aivirtualclassroom-guestname',

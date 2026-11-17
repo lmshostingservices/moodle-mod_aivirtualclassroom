@@ -1,5 +1,8 @@
 # Changes
 
+## 2.6.1 (2026121201)
+- Guest invite page: joining is now a plain link-style (GET) request. It changes nothing in Moodle and has no session to protect, so the page no longer handles a form submission.
+
 ## 2.6.0 (2026121200)
 - **Backup and restore.** Course backups, imports and activity duplication now include AI Virtual Classroom: the settings always, and with user data the attendance, hand raises, breakout assignments, private notes and shared notes (with caption transcripts and AI summaries). Recordings stay with the original activity, and a restored activity gets a new guest link.
 - **The meeting room is translatable.** All of the room's buttons, messages and quiz text now come from the language file, so language packs (AMOS) translate them.
