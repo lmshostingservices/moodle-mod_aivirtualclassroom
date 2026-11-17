@@ -27,59 +27,28 @@ class pptx {
     /** @var int Largest presentation accepted (same limit as the LMS Labs converter). */
     const MAX_BYTES = 30 * 1024 * 1024;
 
-    /** @var string[] Presentation files (shown as animated slide shows when possible). */
+    /** @var string[] Presentation files (shown page by page as PDF). */
     const SHOWS = ['pptx', 'ppt', 'pps', 'ppsx', 'pptm', 'odp', 'key'];
 
     /** @var string[] Documents and spreadsheets (shown as pages). */
     const DOCS = ['docx', 'doc', 'odt', 'rtf', 'txt', 'xlsx', 'xls', 'ods', 'csv'];
 
     /**
-     * Path to LibreOffice on this server, if installed.
+     * Convert a presentation or document for the room.
      *
-     * @return string|null
-     */
-    public static function soffice(): ?string {
-        global $CFG;
-        $candidates = array_filter([
-            $CFG->aivirtualclassroom_soffice ?? null,
-            '/usr/bin/soffice', '/usr/local/bin/soffice', '/usr/lib/libreoffice/program/soffice',
-            '/opt/libreoffice/program/soffice', '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-        ]);
-        foreach ($candidates as $p) {
-            if (@is_executable($p)) {
-                return $p;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Convert a presentation for the room.
-     *
-     * With LibreOffice on this server the result is an animated slide show (SVG with LibreOffice's presentation
-     * engine) that plays the PowerPoint transitions and animations. Otherwise it is a PDF of the slides.
+     * The file is converted to PDF with Moodle's own document converters (Site administration > Plugins >
+     * Document converters, for example unoconv or Google Drive) when one is enabled for this file type.
+     * Otherwise the LMS Labs conversion service makes slide images, which are wrapped in a PDF here.
      *
      * @param string $path Uploaded file.
      * @param string $ext File extension.
-     * @return array [type ('show' or 'pdf'), data, pages]
+     * @return array [type ('pdf'), data, pages]
      */
     public static function convert(string $path, string $ext): array {
-        if (in_array($ext, self::DOCS, true)) {
-            // Word, Excel and other documents are shown page by page as PDF.
-            $bin = self::soffice();
-            $pdf = $bin ? self::libreoffice($bin, $path, $ext, 'pdf') : null;
-            if ($pdf === null) {
-                $pdf = self::lmslabs($path, $ext);
-            }
-            return ['pdf', $pdf, max(1, preg_match_all('~/Type\s*/Page[^s]~', $pdf))];
+        $pdf = self::core_converter($path, $ext);
+        if ($pdf === null) {
+            $pdf = self::lmslabs($path, $ext);
         }
-        if ($bin = self::soffice()) {
-            $svg = self::libreoffice($bin, $path, $ext, 'svg');
-            if ($svg !== null && preg_match('/ooo:number-of-slides="(\d+)"/', $svg, $m)) {
-                return ['show', $svg, max(1, (int)$m[1])];
-            }
-        }
-        $pdf = self::to_pdf($path, $ext);
         return ['pdf', $pdf, max(1, preg_match_all('~/Type\s*/Page[^s]~', $pdf))];
     }
 
@@ -91,40 +60,55 @@ class pptx {
      * @return string PDF data.
      */
     public static function to_pdf(string $path, string $ext): string {
-        if ($bin = self::soffice()) {
-            $pdf = self::libreoffice($bin, $path, $ext, 'pdf');
-            if ($pdf !== null) {
-                return $pdf;
-            }
-        }
-        return self::lmslabs($path, $ext);
+        return self::convert($path, $ext)[1];
     }
 
     /**
-     * Convert with LibreOffice on this server.
+     * Convert with Moodle's document converter API, if a converter for this file type is enabled.
      *
-     * @param string $bin
-     * @param string $path
-     * @param string $ext
-     * @param string $to 'pdf' or 'svg'
-     * @return string|null Converted data, or null if it did not work.
+     * @param string $path Uploaded file.
+     * @param string $ext File extension.
+     * @return string|null PDF data, or null if no converter could do it.
      */
-    protected static function libreoffice(string $bin, string $path, string $ext, string $to): ?string {
-        $dir = make_request_directory();
-        $in = $dir . '/slides.' . $ext;
-        if (!copy($path, $in)) {
+    protected static function core_converter(string $path, string $ext): ?string {
+        global $USER;
+        $converter = new \core_files\converter();
+        if (!$converter->can_convert_format_to($ext, 'pdf')) {
             return null;
         }
-        $profile = 'file://' . $dir . '/profile';
-        $cmd = escapeshellarg($bin) . ' -env:UserInstallation=' . escapeshellarg($profile) .
-            ' --headless --norestore --convert-to ' . $to . ' --outdir ' . escapeshellarg($dir) .
-            ' ' . escapeshellarg($in) . ' 2>&1';
-        if (function_exists('exec')) {
-            $prefix = is_executable('/usr/bin/timeout') ? '/usr/bin/timeout 120 ' : '';
-            @exec($prefix . $cmd, $out, $rc);
+        $fs = get_file_storage();
+        $usercontext = \context_user::instance($USER->id);
+        $draftid = file_get_unused_draft_itemid();
+        $file = $fs->create_file_from_pathname([
+            'contextid' => $usercontext->id,
+            'component' => 'user',
+            'filearea' => 'draft',
+            'itemid' => $draftid,
+            'filepath' => '/',
+            'filename' => 'slides.' . $ext,
+        ], $path);
+        try {
+            $conversion = $converter->start_conversion($file, 'pdf', true);
+            // Some converters work in the background: wait up to two minutes for them.
+            for ($i = 0; $i < 60; $i++) {
+                $status = (int)$conversion->get('status');
+                if ($status === \core_files\conversion::STATUS_COMPLETE || $status === \core_files\conversion::STATUS_FAILED) {
+                    break;
+                }
+                sleep(2);
+                $converter->poll_conversion($conversion);
+            }
+            $dest = $conversion->get_destfile();
+            if ((int)$conversion->get('status') !== \core_files\conversion::STATUS_COMPLETE || !$dest) {
+                return null;
+            }
+            return $dest->get_content();
+        } catch (\Throwable $e) {
+            debugging($e->getMessage(), DEBUG_DEVELOPER);
+            return null;
+        } finally {
+            $fs->delete_area_files($usercontext->id, 'user', 'draft', $draftid);
         }
-        $out = $dir . '/slides.' . $to;
-        return is_readable($out) && filesize($out) > 100 ? file_get_contents($out) : null;
     }
 
     /**
@@ -141,7 +125,7 @@ class pptx {
             throw new \moodle_exception('pptx_nocredentials', 'mod_aivirtualclassroom');
         }
         require_once($CFG->libdir . '/filelib.php');
-        $curl = new \curl(['ignoresecurity' => true]);
+        $curl = new \curl();
         $res = $curl->post($server . '/api/moodle/slideshow/convert-pptx', [
             'file' => new \CURLFile($path, 'application/octet-stream', 'slides.' . $ext),
             'siteId' => $siteid,
@@ -160,8 +144,14 @@ class pptx {
         if (method_exists('\\local_clientportal\\api', 'record_lmslabs_call')) {
             global $USER;
             // Client Portal (when installed) bills the client when the service says it charged.
-            \local_clientportal\api::record_lmslabs_call((int)$USER->id, (int)\context_system::instance()->id,
-                'mod_aivirtualclassroom', $j, 0, 'Slides converted');
+            \local_clientportal\api::record_lmslabs_call(
+                (int)$USER->id,
+                (int)\context_system::instance()->id,
+                'mod_aivirtualclassroom',
+                $j,
+                0,
+                get_string('clientportal_slides', 'mod_aivirtualclassroom')
+            );
         }
         $images = [];
         foreach ($j['slides'] as $s) {

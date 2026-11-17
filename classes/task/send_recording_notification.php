@@ -46,8 +46,6 @@ class send_recording_notification extends \core\task\adhoc_task {
             'name' => format_string($aivirtualclassroom->name, true, ['context' => $context]),
             'course' => format_string($course->fullname, true, ['context' => \context_course::instance($course->id)]),
             'url' => $url->out(false),
-            'date' => userdate($rec->timestarted ?: $rec->timecreated),
-            'duration' => format_time($rec->seconds),
         ];
         $users = get_enrolled_users($context, 'mod/aivirtualclassroom:view', 0, 'u.*', null, 0, 0, true);
         $sent = 0;
@@ -55,6 +53,10 @@ class send_recording_notification extends \core\task\adhoc_task {
             if (!\core_availability\info_module::is_user_visible($cm, $user->id, false)) {
                 continue;
             }
+            // Each person gets the message in their own language and time zone.
+            $oldlang = force_current_language($user->lang);
+            $a->date = userdate($rec->timestarted ?: $rec->timecreated, '', \core_date::get_user_timezone($user));
+            $a->duration = format_time($rec->seconds);
             $message = new \core\message\message();
             $message->component = 'mod_aivirtualclassroom';
             $message->name = 'recordingavailable';
@@ -69,6 +71,7 @@ class send_recording_notification extends \core\task\adhoc_task {
             $message->notification = 1;
             $message->contexturl = $a->url;
             $message->contexturlname = get_string('watchrecording', 'mod_aivirtualclassroom');
+            force_current_language($oldlang);
             if (message_send($message)) {
                 $sent++;
             }

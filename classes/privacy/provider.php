@@ -75,10 +75,25 @@ class provider implements
         ], 'privacy:metadata:aivirtualclassroom_snote');
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:core_files');
         $collection->add_external_location_link('cloudflare', [
+            'userid' => 'privacy:metadata:cloudflare:userid',
             'fullname' => 'privacy:metadata:cloudflare:fullname',
             'picture' => 'privacy:metadata:cloudflare:picture',
             'media' => 'privacy:metadata:cloudflare:media',
+            'chat' => 'privacy:metadata:cloudflare:chat',
+            'captions' => 'privacy:metadata:cloudflare:captions',
+            'notes' => 'privacy:metadata:cloudflare:notes',
+            'slides' => 'privacy:metadata:cloudflare:slides',
+            'course' => 'privacy:metadata:cloudflare:course',
         ], 'privacy:metadata:cloudflare');
+        $collection->add_external_location_link('lmslabs', [
+            'siteurl' => 'privacy:metadata:lmslabs:siteurl',
+            'quiztext' => 'privacy:metadata:lmslabs:quiztext',
+            'files' => 'privacy:metadata:lmslabs:files',
+        ], 'privacy:metadata:lmslabs');
+        $collection->add_external_location_link('google', [
+            'speech' => 'privacy:metadata:google:speech',
+            'ipaddress' => 'privacy:metadata:google:ipaddress',
+        ], 'privacy:metadata:google');
         return $collection;
     }
 

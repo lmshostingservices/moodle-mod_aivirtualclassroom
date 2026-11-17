@@ -28,12 +28,8 @@ if ($ADMIN->fulltree) {
     $centralinstalled = file_exists($CFG->dirroot . '/local/aiconfig/version.php');
     $central = (new moodle_url('/admin/settings.php', ['section' => 'local_aiconfig']))->out();
     $box = function (string $kind, string $html): string {
-        $styles = [
-            'ok' => 'background:#d4edda;border:1px solid #c3e6cb;color:#155724;',
-            'warn' => 'background:#fff3cd;border:1px solid #ffeaa7;color:#856404;',
-            'info' => 'background:#f8f9fa;border:1px solid #dee2e6;color:#383d41;',
-        ];
-        return '<div style="' . $styles[$kind] . 'padding:10px 14px;border-radius:4px;margin-bottom:12px;">' . $html . '</div>';
+        $classes = ['ok' => 'alert alert-success', 'warn' => 'alert alert-warning', 'info' => 'alert alert-info'];
+        return \html_writer::div($html, $classes[$kind]);
     };
     $html = '';
     if (!during_initial_install() && !empty($CFG->version)) {
@@ -89,6 +85,12 @@ if ($ADMIN->fulltree) {
             ''
         ));
     }
+    $settings->add(new admin_setting_configcheckbox(
+        'mod_aivirtualclassroom/cloudeffects',
+        get_string('settings_cloudeffects', 'mod_aivirtualclassroom'),
+        get_string('settings_cloudeffects_desc', 'mod_aivirtualclassroom'),
+        1
+    ));
     $settings->add(new admin_setting_configcheckbox(
         'mod_aivirtualclassroom/studentscreenshare',
         get_string('settings_studentscreenshare', 'mod_aivirtualclassroom'),

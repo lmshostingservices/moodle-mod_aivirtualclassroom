@@ -12,6 +12,7 @@
 /* eslint-disable no-console */
 
 import { LANGUAGES, REGIONS, findLang, searchLangs, suggested } from './languages.js';
+import { T } from './strings.js';
 
 const C = window.AIVC_CONFIG;
 const W = C.worker.replace(/\/$/, '');
@@ -163,7 +164,7 @@ function connect() {
   };
   ws.onclose = (e) => {
     if (S.left || S.ended || e.code === 4003) return;
-    setStatus('Reconnecting…');
+    setStatus(T('js_reconnecting'));
     setTimeout(connect, 1500 + Math.random() * 1500);
   };
   ws.onopen = () => setStatus('');
@@ -187,21 +188,21 @@ function roomPeers() {
 async function onMessage(m) {
   switch (m.t) {
     case 'waiting':
-      return overlay('Waiting room', 'Please wait — a teacher will let you in shortly.', false);
+      return overlay(T('js_waitingroom'), T('js_pleasewaitateacherwillletyouin'), false);
     case 'denied':
       S.ended = true;
-      return overlay('Not admitted', 'A teacher did not admit you to this meeting.', true);
+      return overlay(T('js_notadmitted'), T('js_ateacherdidnotadmityoutothis'), true);
     case 'kicked':
       S.ended = true;
       cleanup();
-      return overlay('Removed from meeting', 'A teacher removed you from this meeting.', true);
+      return overlay(T('js_removedfrommeeting'), T('js_ateacherremovedyoufromthis'), true);
     case 'full':
       S.ended = true;
-      return overlay('Class is full', m.message || 'This class has reached the student limit for its AI Virtual Classroom plan.', true);
+      return overlay(T('js_classisfull'), m.message || T('js_thisclasshasreachedthestudent'), true);
     case 'plan':
       if (m.allow === false && !S.cid) {
         S.ended = true;
-        return overlay('Live classes paused', m.message || 'AI Virtual Classroom is paused for this site. Please contact your Moodle administrator.', true);
+        return overlay(T('js_liveclassespaused'), m.message || T('js_aivirtualclassroomispausedfor'), true);
       }
       S.plan = m;
       if (isMod() && m.message) toast('ℹ️ ' + m.message, 12000);
@@ -209,10 +210,10 @@ async function onMessage(m) {
     case 'locked':
       if (m.on === undefined) {
         S.ended = true;
-        return overlay('Meeting locked', 'This meeting is locked. Ask your teacher to unlock it.', true);
+        return overlay(T('js_meetinglocked'), T('js_thismeetingislockedaskyour'), true);
       }
       S.locked = m.on;
-      toast(m.on ? `🔒 ${m.by} locked the meeting` : `🔓 ${m.by} unlocked the meeting`);
+      toast(m.on ? '🔒 ' + T('js_lockedthemeeting', m.by) : '🔓 ' + T('js_unlockedthemeeting', m.by));
       return renderTop();
     case 'welcome': {
       overlay(null);
@@ -234,7 +235,7 @@ async function onMessage(m) {
           await startMedia();
         } catch (e) {
           console.error(e);
-          setStatus('Audio/video unavailable');
+          setStatus(T('js_audiovideounavailable'));
           toast('⚠️ Audio/video could not connect (' + e.message + '). Chat, whiteboard, slides and notes still work. Try reloading.', 9000);
         }
       } else {
@@ -260,29 +261,29 @@ async function onMessage(m) {
         const p = S.participants.get(cid);
         if (p) p.room = room;
       }
-      if (mine && S.room && mine !== S.room.key) toast(`Moving to ${roomLabel(mine)}…`);
+      if (mine && S.room && mine !== S.room.key) toast(T('js_movingto', roomLabel(mine)));
       return renderAll();
     }
     case 'roomstate':
       setRoom(m.room);
       S.chat = m.chat || [];
-      toast(`You are now in ${m.room.name}`);
+      toast(T('js_youarenowin', m.room.name));
       return renderAll();
     case 'bo':
       S.bo = m.bo;
-      if (!m.bo.active) toast('Breakout rooms closed — back to the main room');
+      if (!m.bo.active) toast(T('js_breakoutroomsclosedbacktothe'));
       return renderAll();
     case 'chat':
       S.chat.push(m);
       if (S.tab !== 'chat' || !panelOpen()) S.unread++;
       if (m.announce) toast(`📣 ${m.name}: ${m.text}`, 8000);
-      else if (m.dm && m.cid !== S.cid) toast(`✉️ Private message from ${m.name}`);
+      else if (m.dm && m.cid !== S.cid) toast('✉️ ' + T('js_privatemessagefrom', m.name));
       return renderSide(), renderBar();
     case 'hand': {
       const p = S.participants.get(m.cid);
       if (p) p.hand = m.up;
       if (m.cid === S.cid) S.hand = m.up;
-      if (m.up && isMod() && p && m.cid !== S.cid) toast(`✋ ${p.name} raised their hand`);
+      if (m.up && isMod() && p && m.cid !== S.cid) toast('✋ ' + T('js_raisedtheirhand', p.name));
       return renderAll();
     }
     case 'emoji':
@@ -290,19 +291,19 @@ async function onMessage(m) {
     case 'forceMute':
       if (m.kind === 'v') {
         if (S.camOn) await toggleCam(false);
-        toast(`${m.by} turned your camera off`);
+        toast(T('js_turnedyourcameraoff', m.by));
       } else {
         if (S.micOn) toggleMic(false);
-        toast(`${m.by} muted you`);
+        toast(T('js_mutedyou', m.by));
       }
       return;
     case 'rec':
       S.rec = m.rec;
-      if (m.rec.on) toast(`⏺ ${m.rec.by} started recording`);
+      if (m.rec.on) toast('⏺ ' + T('js_startedrecording', m.rec.by));
       return renderTop();
     case 'lobby':
       S.lobby = m.list;
-      if (m.list.length && isMod()) toast(`🚪 ${m.list.length} waiting to join`);
+      if (m.list.length && isMod()) toast('🚪 ' + T('js_waitingtojoin', m.list.length));
       return renderSide(), renderBar();
     case 'stage':
       S.room.stage = m.mode;
@@ -355,7 +356,7 @@ async function onMessage(m) {
       S.room.notes = { text: m.text, v: m.v };
       return Notes.reset(m.text, m.v);
     case 'allNotes': {
-      const md = `# ${C.title} — shared notes\n\n` + m.notes.map((n) => `## ${n.name}\n\n${n.text}\n`).join('\n');
+      const md = `# ${C.title} — ${T('js_sharednotes')}\n\n` + m.notes.map((n) => `## ${n.name}\n\n${n.text}\n`).join('\n');
       return download(`${C.title} - shared notes (all rooms).md`, md);
     }
     case 'caption':
@@ -374,12 +375,12 @@ async function onMessage(m) {
       CC.save();
       Recog.sync();
       renderBar();
-      return toast(`💬 Captions now use ${l.name} for your speech. Change it under Captions › Your microphone.`, 7000);
+      return toast('💬 ' + T('js_captionsnowuseforyourspeech', l.name), 7000);
     }
     case 'ended':
       S.ended = true;
       cleanup();
-      return overlay('Meeting ended', `${m.by} ended the meeting for everyone.`, true);
+      return overlay(T('js_meetingended'), T('js_endedthemeetingforeveryone', m.by), true);
     case 'error':
       return toast('⚠️ ' + m.msg);
   }
@@ -407,7 +408,7 @@ function setRoom(room) {
 }
 
 function roomLabel(key) {
-  if (key === 'main') return 'Main room';
+  if (key === 'main') return T('js_mainroom');
   return (S.bo.rooms && S.bo.rooms[key]) || (C.plan && C.plan.rooms[key]) || key;
 }
 
@@ -546,7 +547,7 @@ async function getMic() {
     });
     return s.getAudioTracks()[0];
   } catch (e) {
-    toast('Microphone not available: ' + e.message);
+    toast((T('js_microphonenotavailable') + ' ') + e.message);
     return null;
   }
 }
@@ -563,7 +564,7 @@ async function getCam() {
     t.contentHint = 'motion';
     return t;
   } catch (e) {
-    toast('Camera not available: ' + e.message);
+    toast((T('js_cameranotavailable') + ' ') + e.message);
     return null;
   }
 }
@@ -603,11 +604,11 @@ async function reconnectMedia() {
   if (S.ended || S.left) return;
   S.mediaRetries = (S.mediaRetries || 0) + 1;
   if (S.mediaRetries > MEDIA_RETRY_S.length) {
-    setStatus('Media connection lost');
-    overlayAction('Connection lost', 'Your audio/video connection dropped.', 'Reconnect', () => location.reload());
+    setStatus(T('js_mediaconnectionlost'));
+    overlayAction(T('js_connectionlost'), T('js_youraudiovideoconnectiondropped'), T('js_reconnect'), () => location.reload());
     return;
   }
-  setStatus('Reconnecting audio and video…');
+  setStatus(T('js_reconnectingaudioandvideo'));
   const old = S.pc;
   S.pc = null;
   chain = Promise.resolve();
@@ -632,7 +633,7 @@ async function reconnectMedia() {
 }
 
 async function startMedia() {
-  setStatus('Connecting media…');
+  setStatus(T('js_connectingmedia'));
   await initPc();
   if (!S.mic) S.mic = await getMic();
   const entries = [];
@@ -771,18 +772,18 @@ const FxSafe = {
     clearTimeout(this.timer);
     if (this.count >= 3) {
       this.off = true;
-      toast('Camera effects are off for this class because your computer’s graphics kept stopping. Your camera is still on.', 7000);
+      toast(T('js_cameraeffectsareoffforthisclass'), 7000);
       if (S.room) renderBar();
       return;
     }
-    toast('Camera effects stopped for a moment. Your camera is still on; trying again.', 6000);
+    toast(T('js_cameraeffectsstoppedforamoment'), 6000);
     this.tries = 0;
     this.timer = setTimeout(() => this.retry(), 3000);
   },
   retry() {
     if (this.off) return;
     if (!this.gpuOk() && ++this.tries < 5) { this.timer = setTimeout(() => this.retry(), 3000); return; }
-    if (!this.gpuOk()) { this.off = true; toast('Camera effects are off for this class. Your camera is still on.', 6000); return; }
+    if (!this.gpuOk()) { this.off = true; toast(T('js_cameraeffectsareoffforthisclass2'), 6000); return; }
     rebuildCam();
   },
   gpuOk() {
@@ -851,7 +852,7 @@ async function rebuildCamNow() {
 }
 
 async function toggleCam(on = !S.camOn) {
-  if (on && !camAllowed()) return toast('Your teacher has turned student cameras off to save bandwidth.');
+  if (on && !camAllowed()) return toast(T('js_yourteacherhasturnedstudent'));
   S.camOn = on;
   if (on) S.camForcedOff = false;
   lsSet('cam', on ? '1' : '0');
@@ -883,20 +884,20 @@ function applyCameraPolicy() {
   if (S.camOn && !camAllowed()) {
     S.camForcedOff = true; // the room setting turned it off, not this person
     toggleCam(false);
-    toast('Cameras are limited in this room to save bandwidth.');
+    toast(T('js_camerasarelimitedinthisroomto'));
   } else if (S.camForcedOff && !S.camOn && camAllowed()) {
     // Cameras allowed again (e.g. back from "Audio only"): a teacher's camera comes straight back on; anyone else
     // decides for themselves.
     S.camForcedOff = false;
     if (ME.mod) toggleCam(true);
-    else toast('Cameras are allowed again. Turn yours on with Start video.', 6000);
+    else toast(T('js_camerasareallowedagainturnyours'), 6000);
   }
   renderBar();
 }
 
 async function toggleScreen() {
   if (S.screen) return stopScreen();
-  if (!ME.mod && !C.studentScreenShare && !pol().present) return toast('Screen sharing is for teachers in this room.');
+  if (!ME.mod && !C.studentScreenShare && !pol().present) return toast(T('js_screensharingisforteachersin'));
   try {
     const s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 15 }, width: { max: 1920 }, height: { max: 1080 } }, audio: false });
     S.screen = s.getVideoTracks()[0];
@@ -905,10 +906,10 @@ async function toggleScreen() {
     [S.screenTx] = await publish([{ track: S.screen, name: 's', enc: [{ maxBitrate: 2000000, maxFramerate: 15 }] }]);
     tuneSender(S.screenTx.sender, 'maintain-resolution');
     announceTracks();
-    toast('Tip: presenting slides as a PDF (Present ▸ Upload) uses far less data than sharing your screen.', 6000);
+    toast(T('js_tippresentingslidesasapdf'), 6000);
   } catch (e) {
     S.screen = null;
-    if (e.name !== 'NotAllowedError') toast('Could not share screen: ' + e.message);
+    if (e.name !== 'NotAllowedError') toast((T('js_couldnotsharescreen') + ' ') + e.message);
   }
   renderAll();
 }
@@ -937,6 +938,8 @@ const Look = {
   video: null, gl: null, track: null, loopOff: null, face: null, faceLoading: null,
   async faceFinder() {
     if (this.face !== null) return this.face;
+    // The face finder model comes from Google and jsDelivr; the site administrator can turn that off.
+    if (!C.cloudEffects) { this.face = false; return false; }
     if (!this.faceLoading) this.faceLoading = (async () => {
       try {
         const base = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
@@ -1132,7 +1135,9 @@ const Blur = {
     return this.segLoading;
   },
   async loadSegmenterNow() {
-    toast('Loading background effects (first time only)…');
+    // The background effect models come from Google and jsDelivr; the site administrator can turn that off.
+    if (!C.cloudEffects) throw new Error('Background effects are turned off by the site administrator');
+    toast(T('js_loadingbackgroundeffectsfirst'));
     const base = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
     const v = await import(base + '/vision_bundle.mjs');
     const files = await v.FilesetResolver.forVisionTasks(base + '/wasm');
@@ -1609,7 +1614,7 @@ float e=(1.-a)*a*4.;vec3 f=mix(c,b,(bb>.5?.12:.03)*e);gl_FragColor=vec4(mix(b,f,
     } catch (e) {
       console.warn(e);
       this.stop();
-      toast('Background effects are not available on this device.');
+      toast(T('js_backgroundeffectsarenot'));
       return raw;
     }
   },
@@ -1631,15 +1636,15 @@ FxSafe.checkLastCrash();
 window.addEventListener('pagehide', () => FxSafe.mark(false));
 
 function bgLabel() {
-  if (!S.bg || S.bg === 'none') return 'None';
-  if (S.bg === 'blur') return 'Blur';
-  if (S.bg === 'custom') return 'Your picture';
-  return (Backgrounds.list.find((b) => b.id === S.bg) || Backgrounds.photos.find((b) => b.id === S.bg) || {}).name || 'On';
+  if (!S.bg || S.bg === 'none') return T('js_none');
+  if (S.bg === 'blur') return T('js_blur');
+  if (S.bg === 'custom') return T('js_yourpicture');
+  return (Backgrounds.list.find((b) => b.id === S.bg) || Backgrounds.photos.find((b) => b.id === S.bg) || {}).name || T('js_on');
 }
 
 function renameMe() {
   const cur = (S.participants.get(S.cid) || {}).name || ME.name;
-  const v = window.prompt('Your name as others see it in this class (leave empty to use your Moodle name):', cur);
+  const v = window.prompt(T('js_yournameasothersseeitinthis'), cur);
   if (v === null) return;
   const name = v.replace(/\s+/g, ' ').trim().slice(0, 60);
   lsSet('dname', name);
@@ -1658,10 +1663,10 @@ function setBlurAmount(v) {
   if (Blur.video && Blur.setAmount) Blur.setAmount(S.blurAmt);
 }
 function blurSlider() {
-  return h('label', { class: 'lm-menu-item lm-slider' }, icon('blur'), h('span', {}, 'Blur strength'),
-    h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(S.blurAmt * 100), 'aria-label': 'Blur strength',
+  return h('label', { class: 'lm-menu-item lm-slider' }, icon('blur'), h('span', {}, T('js_blurstrength')),
+    h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(S.blurAmt * 100), 'aria-label': T('js_blurstrength'),
       oninput: (e) => setBlurAmount(e.target.value / 100) }),
-    h('small', { class: 'ends' }, h('span', {}, 'Light'), h('span', {}, 'Strong')));
+    h('small', { class: 'ends' }, h('span', {}, T('js_light')), h('span', {}, T('js_strong'))));
 }
 
 // Studio look sliders (0..1): brightness and zoom. Remembered on this device; applied live.
@@ -1675,7 +1680,7 @@ function lookSliders() {
     h('input', { type: 'range', min: 0, max: 100, step: 1, value: Math.round(S[key] * 100), 'aria-label': label,
       oninput: (e) => setLookValue(key, e.target.value / 100) }),
     h('small', { class: 'ends' }, h('span', {}, lo), h('span', {}, hi)));
-  return [one('lookBright', 'sun', 'Brightness', 'Darker', 'Brighter'), one('lookZoom', 'search', 'Zoom', 'Full view', 'Close')];
+  return [one('lookBright', 'sun', T('js_brightness'), T('js_darker'), T('js_brighter')), one('lookZoom', 'search', T('js_zoom'), T('js_fullview'), T('js_close'))];
 }
 
 async function setBackground(mode) {
@@ -1720,11 +1725,11 @@ const Avatar = {
     try {
       const r = await fetch(C.avatarUrl, { method: 'POST', credentials: 'same-origin', body });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.pic) throw new Error(j.error || 'Could not save your picture.');
+      if (!r.ok || !j.pic) throw new Error(j.error || T('js_couldnotsaveyourpicture'));
       ME.pic = j.pic;
       C.token = j.token; // the class sees the new picture when you join
       C.customPic = !!j.custom;
-      toast(dataUrl ? 'Picture saved. Everyone sees it in class.' : 'Using your Moodle picture.');
+      toast(dataUrl ? T('js_picturesavedeveryoneseesitin') : T('js_usingyourmoodlepicture'));
       return true;
     } catch (e) {
       toast('⚠️ ' + e.message);
@@ -1738,7 +1743,7 @@ const Avatar = {
     el.addEventListener('keydown', (e) => e.key === 'Escape' && close());
     const done = async (data) => { sheet.classList.add('busy'); if (await this.save(data)) close(); else sheet.classList.remove('busy'); };
     const snap = () => {
-      if (!video || !video.videoWidth) return toast('Turn your camera on first, then take your photo.');
+      if (!video || !video.videoWidth) return toast(T('js_turnyourcameraonfirstthentake'));
       const side = Math.min(video.videoWidth, video.videoHeight);
       const c = h('canvas', { width: 384, height: 384 });
       const x = c.getContext('2d');
@@ -1757,46 +1762,46 @@ const Avatar = {
           const c = h('canvas', { width: 384, height: 384 });
           c.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 384, 384);
           done(c.toDataURL('image/jpeg', .9));
-        } catch (e) { toast('Could not use that picture.'); }
+        } catch (e) { toast(T('js_couldnotusethatpicture')); }
       };
       inp.click();
     };
     sheet.replaceChildren(
-      h('header', {}, h('h3', { id: 'lm-av-title' }, 'Your picture in class'), h('button', { class: 'lm-icon-btn', 'aria-label': 'Close', onclick: close }, icon('x'))),
-      h('div', { class: 'lm-av-now' }, this.face(84), h('p', { class: 'lm-sheet-hint' }, 'Shown on your tile when your camera is off, in People, and next to your captions. Your Moodle profile picture is not changed.')),
+      h('header', {}, h('h3', { id: 'lm-av-title' }, T('js_yourpictureinclass')), h('button', { class: 'lm-icon-btn', 'aria-label': T('js_close'), onclick: close }, icon('x'))),
+      h('div', { class: 'lm-av-now' }, this.face(84), h('p', { class: 'lm-sheet-hint' }, T('js_shownonyourtilewhenyourcamerais'))),
       h('div', { class: 'lm-av-acts' },
-        h('button', { class: 'lm-primary', onclick: snap, disabled: !(video && video.videoWidth) }, icon('cam'), 'Take a photo'),
-        h('button', { class: 'lm-secondary', onclick: upload }, icon('plus'), 'Upload a picture')),
-      h('h4', { class: 'lm-av-h' }, 'Or pick a fun avatar'),
+        h('button', { class: 'lm-primary', onclick: snap, disabled: !(video && video.videoWidth) }, icon('cam'), T('js_takeaphoto')),
+        h('button', { class: 'lm-secondary', onclick: upload }, icon('plus'), T('js_uploadapicture'))),
+      h('h4', { class: 'lm-av-h' }, T('js_orpickafunavatar')),
       h('div', { class: 'lm-av-grid' }, ...this.FUN.map((f) => {
         const c = this.fun(f);
-        return h('button', { class: 'lm-av-fun', 'aria-label': 'Avatar ' + f[0], onclick: () => done(c.toDataURL('image/jpeg', .92)) }, c);
+        return h('button', { class: 'lm-av-fun', 'aria-label': (T('js_avatar') + ' ') + f[0], onclick: () => done(c.toDataURL('image/jpeg', .92)) }, c);
       })),
-      C.customPic ? h('button', { class: 'lm-linkish lm-av-reset', onclick: () => done(null) }, 'Use my Moodle picture instead') : '');
+      C.customPic ? h('button', { class: 'lm-linkish lm-av-reset', onclick: () => done(null) }, T('js_usemymoodlepictureinstead')) : '');
     document.body.append(el);
   },
 };
 
 const Backgrounds = {
   list: [
-    { id: 'studio', name: 'Studio', paint: (x, w, hh) => Backgrounds.grad(x, w, hh, ['#e9edf2', '#b9c2cc'], 'radial') },
-    { id: 'lavender', name: 'Lavender', paint: (x, w, hh) => { Backgrounds.grad(x, w, hh, ['#efe6ff', '#b58cf6'], 'linear'); Backgrounds.blobs(x, w, hh, ['#ffffff', '#d9c2ff', '#c6007f'], 9); } },
-    { id: 'ocean', name: 'Ocean', paint: (x, w, hh) => { Backgrounds.grad(x, w, hh, ['#d6ecff', '#0a60e9'], 'linear'); Backgrounds.blobs(x, w, hh, ['#ffffff', '#8ccaff'], 9); } },
-    { id: 'sunset', name: 'Sunset', paint: (x, w, hh) => { Backgrounds.grad(x, w, hh, ['#ffe1b8', '#f78e08', '#c6007f'], 'linear'); Backgrounds.blobs(x, w, hh, ['#fff4d6', '#ffd08a'], 8); } },
-    { id: 'forest', name: 'Forest', paint: (x, w, hh) => { Backgrounds.grad(x, w, hh, ['#d9f2df', '#1f7a4c'], 'linear'); Backgrounds.blobs(x, w, hh, ['#f4ffe9', '#9bd8a5'], 12); } },
+    { id: 'studio', name: T('js_studio'), paint: (x, w, hh) => Backgrounds.grad(x, w, hh, ['#e9edf2', '#b9c2cc'], 'radial') },
+    { id: 'lavender', name: T('js_lavender'), paint: (x, w, hh) => { Backgrounds.grad(x, w, hh, ['#efe6ff', '#b58cf6'], 'linear'); Backgrounds.blobs(x, w, hh, ['#ffffff', '#d9c2ff', '#c6007f'], 9); } },
+    { id: 'ocean', name: T('js_ocean'), paint: (x, w, hh) => { Backgrounds.grad(x, w, hh, ['#d6ecff', '#0a60e9'], 'linear'); Backgrounds.blobs(x, w, hh, ['#ffffff', '#8ccaff'], 9); } },
+    { id: 'sunset', name: T('js_sunset'), paint: (x, w, hh) => { Backgrounds.grad(x, w, hh, ['#ffe1b8', '#f78e08', '#c6007f'], 'linear'); Backgrounds.blobs(x, w, hh, ['#fff4d6', '#ffd08a'], 8); } },
+    { id: 'forest', name: T('js_forest'), paint: (x, w, hh) => { Backgrounds.grad(x, w, hh, ['#d9f2df', '#1f7a4c'], 'linear'); Backgrounds.blobs(x, w, hh, ['#f4ffe9', '#9bd8a5'], 12); } },
   ],
   // Office photos shipped inside the plugin (client/backgrounds), so they load from the client's own Moodle.
   photos: [
-    { id: 'office', name: 'Open-plan office', file: 'open-plan' },
-    { id: 'executive', name: 'Executive office', file: 'executive' },
-    { id: 'scandi', name: 'Home office', file: 'scandi' },
-    { id: 'loft', name: 'Brick loft', file: 'loft' },
-    { id: 'library', name: 'Library', file: 'library' },
-    { id: 'plantwall', name: 'Plant wall', file: 'plant-wall' },
-    { id: 'skyline', name: 'City view', file: 'skyline' },
-    { id: 'cowork', name: 'Creative studio', file: 'cowork' },
-    { id: 'coastal', name: 'Beach office', file: 'coastal' },
-    { id: 'training', name: 'Training room', file: 'training' },
+    { id: 'office', name: T('js_openplanoffice'), file: 'open-plan' },
+    { id: 'executive', name: T('js_executiveoffice'), file: 'executive' },
+    { id: 'scandi', name: T('js_homeoffice'), file: 'scandi' },
+    { id: 'loft', name: T('js_brickloft'), file: 'loft' },
+    { id: 'library', name: T('js_library'), file: 'library' },
+    { id: 'plantwall', name: T('js_plantwall'), file: 'plant-wall' },
+    { id: 'skyline', name: T('js_cityview'), file: 'skyline' },
+    { id: 'cowork', name: T('js_creativestudio'), file: 'cowork' },
+    { id: 'coastal', name: T('js_beachoffice'), file: 'coastal' },
+    { id: 'training', name: T('js_trainingroom'), file: 'training' },
   ],
   photoUrl(b, thumb) { return new URL(`./backgrounds/${thumb ? 'thumbs/' : ''}${b.file}.jpg`, import.meta.url).href; },
   cache: {},
@@ -1856,7 +1861,7 @@ const Backgrounds = {
       const f = inp.files && inp.files[0];
       if (!f) return;
       try {
-        toast('Adding your picture…');
+        toast(T('js_addingyourpicture'));
         // Shrink the photo off the main thread first (a phone photo can be 12 megapixels), then encode it
         // asynchronously, so nothing freezes while it is added.
         const probe = await createImageBitmap(f);
@@ -1871,12 +1876,12 @@ const Backgrounds = {
         let data = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); });
         if (data.length > 2500000) data = c.toDataURL('image/jpeg', .6);
         lsSet('bgimg', data);
-        if (lsGet('bgimg') !== data) toast('That picture is too large to keep for next time, but it is used now.');
+        if (lsGet('bgimg') !== data) toast(T('js_thatpictureistoolargetokeepfor'));
         this.custom = data;
         this.close();
         await setBackground('custom');
       } catch (e) {
-        toast('Could not use that picture.');
+        toast(T('js_couldnotusethatpicture'));
       }
     };
     inp.click();
@@ -1904,17 +1909,17 @@ const Backgrounds = {
     if (custom) { const im = new Image(); im.src = custom; im.className = 'lm-bg-img'; customThumb = im; }
     this.sheet.replaceChildren(
       h('header', {},
-        h('h3', { id: 'lm-bg-title' }, 'Background'),
-        h('button', { class: 'lm-icon-btn', 'aria-label': 'Close', onclick: () => this.close() }, icon('x'))),
-      h('p', { class: 'lm-sheet-hint' }, S.camOn ? 'Pick a background. Everyone sees it straight away.' : 'Pick a background. It is used when you turn your camera on.'),
+        h('h3', { id: 'lm-bg-title' }, T('js_background')),
+        h('button', { class: 'lm-icon-btn', 'aria-label': T('js_close'), onclick: () => this.close() }, icon('x'))),
+      h('p', { class: 'lm-sheet-hint' }, S.camOn ? T('js_pickabackgroundeveryoneseesit') : T('js_pickabackgrounditisusedwhenyou')),
       h('div', { class: 'lm-bg-grid' },
-        tile('none', 'None', h('div', { class: 'lm-bg-icon' }, icon('cam'))),
-        tile('blur', 'Blur', h('div', { class: 'lm-bg-icon blur' }, icon('blur'))),
+        tile('none', T('js_none'), h('div', { class: 'lm-bg-icon' }, icon('cam'))),
+        tile('blur', T('js_blur'), h('div', { class: 'lm-bg-icon blur' }, icon('blur'))),
         ...this.photos.map((b) => tile(b.id, b.name, h('img', { class: 'lm-bg-img', src: this.photoUrl(b, true), alt: '', loading: 'lazy' }))),
         ...this.list.map((b) => tile(b.id, b.name, pic(this.canvas(b.id, 320, 180)))),
-        custom ? tile('custom', 'Your picture', customThumb) : '',
-        h('button', { class: 'lm-bg-tile', onclick: () => this.upload() }, h('div', { class: 'lm-bg-icon' }, icon('plus')), h('span', {}, custom ? 'Change picture' : 'Upload a picture'))),
-      h('p', { class: 'lm-sheet-hint small' }, 'Your picture stays on this device. Works best with good light in front of you.'));
+        custom ? tile('custom', T('js_yourpicture'), customThumb) : '',
+        h('button', { class: 'lm-bg-tile', onclick: () => this.upload() }, h('div', { class: 'lm-bg-icon' }, icon('plus')), h('span', {}, custom ? T('js_changepicture') : T('js_uploadapicture')))),
+      h('p', { class: 'lm-sheet-hint small' }, T('js_yourpicturestaysonthisdevice')));
   },
 };
 
@@ -1924,7 +1929,7 @@ async function setSmooth(on) {
   if (S.room) renderBar(); // show the new state straight away (the button stayed lit, so a second click turned it back on)
   await rebuildCam();
   if (S.room) renderBar();
-  if (on && !Smooth.ok) toast('Smooth skin is not available on this device.');
+  if (on && !Smooth.ok) toast(T('js_smoothskinisnotavailableonthis'));
 }
 
 // ------------------------------------------------------------------ smooth skin (one-click touch-up)
@@ -2245,7 +2250,7 @@ function tileEl(p, kind = 'video') {
   t.label.replaceChildren(
     micOff && kind !== 'screen' ? Object.assign(icon('micOff'), { className: 'ico off' }) : '',
     h('span', { class: 'nm' }, p.name + (kind === 'screen' ? '’s screen' : '') + (p.cid === S.cid ? ' (you)' : '')),
-    p.mod && kind !== 'screen' ? h('span', { class: 'role' }, 'Teacher') : '');
+    p.mod && kind !== 'screen' ? h('span', { class: 'role' }, T('js_teacher')) : '');
   t.el.classList.toggle('hand', !!p.hand);
   if (!t.handEl) {
     t.handEl = h('div', { class: 'lm-tile-hand' }, icon('hand'));
@@ -2316,11 +2321,11 @@ function renderTop() {
       S.room ? h('span', { class: 'lm-chip' + (S.room.key !== 'main' ? ' bo' : '') }, S.room.key !== 'main' ? icon('door') : '', S.room.name || roomLabel(S.room.key)) : ''),
     h('div', { class: 'lm-top-right' },
       isMod() ? classLink() : '',
-      bo !== null ? h('span', { class: 'lm-chip warn', title: 'Breakout rooms close in' }, `${Math.floor(bo / 60)}:${String(bo % 60).padStart(2, '0')}`) : '',
-      S.locked ? h('span', { class: 'lm-chip', title: 'Meeting locked' }, icon('lock'), 'Locked') : '',
-      S.rec.on ? h('span', { class: 'lm-chip rec' }, h('span', { class: 'dot' }), 'Recording') : '',
-      S.dataSaver ? h('span', { class: 'lm-chip' }, icon('feather'), 'Data saver') : '',
-      h('span', { class: 'lm-net lv' + level, title: `Receiving ${kbps} kbps, sending ${Math.round(S.stats.txRate)} kbps. ${(S.stats.rx / 1048576).toFixed(1)} MB this session.` },
+      bo !== null ? h('span', { class: 'lm-chip warn', title: T('js_breakoutroomsclosein') }, `${Math.floor(bo / 60)}:${String(bo % 60).padStart(2, '0')}`) : '',
+      S.locked ? h('span', { class: 'lm-chip', title: T('js_meetinglocked') }, icon('lock'), T('js_locked')) : '',
+      S.rec.on ? h('span', { class: 'lm-chip rec' }, h('span', { class: 'dot' }), T('js_recording')) : '',
+      S.dataSaver ? h('span', { class: 'lm-chip' }, icon('feather'), T('js_datasaver')) : '',
+      h('span', { class: 'lm-net lv' + level, title: T('js_receivingkbpssendingkbpsmbthis', { rx: kbps, tx: Math.round(S.stats.txRate), mb: (S.stats.rx / 1048576).toFixed(1) }) },
         h('span', { class: 'bars' }, h('i'), h('i'), h('i')), `${kbps} kbps`),
       h('span', { id: 'lm-status' }, S.statusText || '')));
 }
@@ -2331,7 +2336,7 @@ function copyText(text, msg) {
   const done = () => toast(msg);
   const fallback = () => {
     const ta = h('textarea', { style: 'position:fixed;left:-9999px' }); ta.value = text; document.body.append(ta); ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { window.prompt('Copy this:', text); }
+    try { document.execCommand('copy'); done(); } catch (e) { window.prompt(T('js_copythis'), text); }
     ta.remove();
   };
   if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback);
@@ -2343,12 +2348,12 @@ function copyText(text, msg) {
 function classLink() {
   const url = C.returnUrl;
   const short = url.replace(/^https?:\/\//, '');
-  const copy = (text, what) => copyText(text, `${what} copied. Paste it into an email or chat.`);
+  const copy = (text, what) => copyText(text, T('js_copiedpasteitintoanemailorchat', what));
   return h('span', { class: 'lm-linkchip' },
     icon('link'),
     h('span', { class: 'url', title: url }, short),
-    h('button', { class: 'cp', title: 'Copy the class link', 'aria-label': 'Copy the class link', onclick: () => copy(url, 'Class link') }, 'Copy'),
-    C.guestUrl ? h('button', { class: 'cp', title: 'Copy a ready-to-send guest invite (class name, time, link and how to join) for people without a Moodle login', onclick: () => copy(C.guestInvite || C.guestUrl, 'Guest invite') }, 'Guest invite') : '');
+    h('button', { class: 'cp', title: T('js_copytheclasslink'), 'aria-label': T('js_copytheclasslink'), onclick: () => copy(url, T('js_classlink')) }, T('js_copy')),
+    C.guestUrl ? h('button', { class: 'cp', title: T('js_copyareadytosendguestinvite'), onclick: () => copy(C.guestInvite || C.guestUrl, T('js_guestinvite')) }, T('js_guestinvite')) : '');
 }
 
 function setStatus(t) {
@@ -2396,7 +2401,7 @@ function renderBar() {
     S.tab = k; if (k === 'chat') S.unread = 0; togglePanel(true); renderSide();
   }, { cls: panelOpen() && S.tab === k ? 'on' : '', badge: badge || null, title: label });
   const bgOn = S.bg && S.bg !== 'none' && S.bg !== 'blur';
-  const endMeeting = () => { if (window.confirm('End the meeting for everyone?')) send({ t: 'end' }); };
+  const endMeeting = () => { if (window.confirm(T('js_endthemeetingforeveryone'))) send({ t: 'end' }); };
   const pollBadge = pollWaiting ? '!' : null;
   // Bottom bar, left to right, one job per group:
   //  1 You: mic, camera, screen share      2 Camera look: blur, background, smooth skin, studio look
@@ -2406,77 +2411,77 @@ function renderBar() {
   bar.replaceChildren(
     h('div', { class: 'lm-group' },
       h('div', { class: 'lm-split' },
-        btn(S.micOn ? 'Mute' : 'Unmute', S.micOn ? 'mic' : 'micOff', () => toggleMic(), { cls: S.micOn ? '' : 'off', pressed: !S.micOn }),
-        pop(h('button', { class: 'lm-split-lang', title: 'Microphone options', 'aria-label': 'Microphone options', onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
-          h('div', { class: 'lm-pop menu' }, check('mic', 'Noise suppression', S.noiseSuppression, setNoiseSuppression)))),
-      btn(S.camOn ? 'Stop video' : 'Start video', S.camOn ? 'cam' : 'camOff', () => toggleCam(), { cls: S.camOn ? '' : 'off', disabled: !camAllowed() && !S.camOn, title: camAllowed() ? 'Camera' : 'Cameras are off in this room to save bandwidth' }),
-      btn(S.screen ? 'Stop share' : 'Share', S.screen ? 'stop' : 'screen', toggleScreen, { cls: S.screen ? 'on' : '', disabled: !isMod() && !C.studentScreenShare && !pol().present })),
+        btn(S.micOn ? T('js_mute') : T('js_unmute'), S.micOn ? 'mic' : 'micOff', () => toggleMic(), { cls: S.micOn ? '' : 'off', pressed: !S.micOn }),
+        pop(h('button', { class: 'lm-split-lang', title: T('js_microphoneoptions'), 'aria-label': T('js_microphoneoptions'), onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
+          h('div', { class: 'lm-pop menu' }, check('mic', T('js_noisesuppression'), S.noiseSuppression, setNoiseSuppression)))),
+      btn(S.camOn ? T('js_stopvideo') : T('js_startvideo'), S.camOn ? 'cam' : 'camOff', () => toggleCam(), { cls: S.camOn ? '' : 'off', disabled: !camAllowed() && !S.camOn, title: camAllowed() ? T('js_camera') : T('js_camerasareoffinthisroomtosave') }),
+      btn(S.screen ? T('js_stopshare') : T('js_share'), S.screen ? 'stop' : 'screen', toggleScreen, { cls: S.screen ? 'on' : '', disabled: !isMod() && !C.studentScreenShare && !pol().present })),
     h('div', { class: 'lm-group lm-fold' },
       h('div', { class: 'lm-split' + (S.bg === 'blur' ? ' on' : '') },
-        btn('Blur', 'blur', () => setBackground(S.bg === 'blur' ? 'none' : 'blur'), { cls: S.bg === 'blur' ? 'on' : '', pressed: S.bg === 'blur', title: 'Blur your background' }),
-        pop(h('button', { class: 'lm-split-lang', title: 'Blur strength', 'aria-label': 'Blur strength', onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
+        btn(T('js_blur'), 'blur', () => setBackground(S.bg === 'blur' ? 'none' : 'blur'), { cls: S.bg === 'blur' ? 'on' : '', pressed: S.bg === 'blur', title: T('js_bluryourbackground') }),
+        pop(h('button', { class: 'lm-split-lang', title: T('js_blurstrength'), 'aria-label': T('js_blurstrength'), onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
           h('div', { class: 'lm-pop menu' }, blurSlider()))),
-      btn('Background', 'image', () => Backgrounds.open(), { cls: bgOn ? 'on' : '', title: bgOn ? 'Background: ' + bgLabel() : 'Put a picture behind you' }),
-      btn('Smooth skin', 'sparkles', () => setSmooth(!S.smooth), { cls: S.smooth ? 'on' : '', pressed: !!S.smooth, title: 'A gentle touch-up of your camera' }),
+      btn(T('js_background'), 'image', () => Backgrounds.open(), { cls: bgOn ? 'on' : '', title: bgOn ? (T('js_background2') + ' ') + bgLabel() : T('js_putapicturebehindyou') }),
+      btn(T('js_smoothskin'), 'sparkles', () => setSmooth(!S.smooth), { cls: S.smooth ? 'on' : '', pressed: !!S.smooth, title: T('js_agentletouchupofyourcamera') }),
       h('div', { class: 'lm-split' + (S.look ? ' on' : '') },
-        btn('Studio look', 'sun', () => setLook(!S.look), { cls: S.look ? 'on' : '', pressed: !!S.look, title: 'A brighter picture and a slight zoom' }),
-        pop(h('button', { class: 'lm-split-lang', title: 'Brightness and zoom', 'aria-label': 'Brightness and zoom', onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
+        btn(T('js_studiolook'), 'sun', () => setLook(!S.look), { cls: S.look ? 'on' : '', pressed: !!S.look, title: T('js_abrighterpictureandaslightzoom') }),
+        pop(h('button', { class: 'lm-split-lang', title: T('js_brightnessandzoom'), 'aria-label': T('js_brightnessandzoom'), onclick: toggleOpen }, h('span', { class: 'chev' }, icon('next'))),
           h('div', { class: 'lm-pop menu' }, ...lookSliders())))),
     h('div', { class: 'lm-group' },
-      btn(S.hand ? 'Lower hand' : 'Raise hand', 'hand', () => { send({ t: 'hand', up: !S.hand }); if (!S.hand) S.handCount++; }, { cls: S.hand ? 'on hand' : '', pressed: S.hand }),
-      pop(btn('React', 'smile', toggleOpen),
-        h('div', { class: 'lm-pop emojis' }, ...EMOJIS.map((em) => h('button', { class: 'lm-emoji-btn', 'aria-label': 'Send ' + em, onclick: () => { send({ t: 'emoji', e: em }); closePops(); } }, em)))),
+      btn(S.hand ? T('js_lowerhand') : T('js_raisehand'), 'hand', () => { send({ t: 'hand', up: !S.hand }); if (!S.hand) S.handCount++; }, { cls: S.hand ? 'on hand' : '', pressed: S.hand }),
+      pop(btn(T('js_react'), 'smile', toggleOpen),
+        h('div', { class: 'lm-pop emojis' }, ...EMOJIS.map((em) => h('button', { class: 'lm-emoji-btn', 'aria-label': (T('js_send') + ' ') + em, onclick: () => { send({ t: 'emoji', e: em }); closePops(); } }, em)))),
       h('div', { class: 'lm-split' + (S.ccOn ? ' on' : '') },
-        btn('Captions', 'cc', () => toggleCaptions(), { cls: S.ccOn ? 'on' : '', pressed: S.ccOn, title: 'Turn captions on or off' }),
-        h('button', { class: 'lm-split-lang', title: 'Choose caption language', 'aria-label': 'Choose caption language', onclick: () => LangPicker.open('show') },
+        btn(T('js_captions'), 'cc', () => toggleCaptions(), { cls: S.ccOn ? 'on' : '', pressed: S.ccOn, title: T('js_turncaptionsonoroff') }),
+        h('button', { class: 'lm-split-lang', title: T('js_choosecaptionlanguage'), 'aria-label': T('js_choosecaptionlanguage'), onclick: () => LangPicker.open('show') },
           ccLang ? h('span', { class: 'flag' }, ccLang.flag || ccLang.cc) : h('span', { class: 'aa' }, 'Aa'),
           h('span', { class: 'chev' }, icon('next')))),
-      canPresent ? pop(btn('Present', 'present', toggleOpen, { cls: S.room && S.room.stage !== 'grid' ? 'on' : '' }),
+      canPresent ? pop(btn(T('js_present'), 'present', toggleOpen, { cls: S.room && S.room.stage !== 'grid' ? 'on' : '' }),
         h('div', { class: 'lm-pop menu' },
-          item('pen', 'Whiteboard', () => send({ t: 'stage', mode: 'wb' })),
-          isMod() ? item('grid', 'Student boards (everyone draws, you mark)', () => {
-            const prompt = window.prompt('What should students answer on their boards? (optional)', S.room.slates && S.room.slates.prompt || '');
+          item('pen', T('js_whiteboard'), () => send({ t: 'stage', mode: 'wb' })),
+          isMod() ? item('grid', T('js_studentboardseveryonedrawsyou'), () => {
+            const prompt = window.prompt(T('js_whatshouldstudentsanswerontheir'), S.room.slates && S.room.slates.prompt || '');
             if (prompt !== null) send({ t: 'slates', op: 'start', prompt });
           }) : '',
-          isMod() && S.room && S.room.slates && S.room.stage !== 'slates' ? item('grid', 'Back to student boards', () => send({ t: 'slates', op: 'reopen' })) : '',
-          item('notes', 'Present a file (PowerPoint, PDF, Word, Excel, image)', () => Slides.pick()),
-          isMod() && C.quizUrl ? item('quiz', S.quiz ? 'AI quiz results' : 'AI quiz from slides', () => quizMod().then((Q) => (S.quiz ? Q.openResults() : Q.openMaker(Slides)))) : '',
-          S.room && S.room.pres ? item('present', `Show “${S.room.pres.name}”`, () => send({ t: 'stage', mode: 'pres' })) : '',
-          S.room && S.room.stage !== 'grid' ? item('grid', 'Back to video', () => send({ t: 'stage', mode: 'grid' })) : '')) : '',
-      btn(showingSpeaker ? 'Gallery' : 'Speaker', showingSpeaker ? 'grid' : 'speaker', () => { S.view = showingSpeaker ? 'gallery' : 'speaker'; renderAll(); }, { title: showingSpeaker ? 'Gallery view' : 'Speaker view' })),
+          isMod() && S.room && S.room.slates && S.room.stage !== 'slates' ? item('grid', T('js_backtostudentboards'), () => send({ t: 'slates', op: 'reopen' })) : '',
+          item('notes', T('js_presentafilepowerpointpdfword'), () => Slides.pick()),
+          isMod() && C.quizUrl ? item('quiz', S.quiz ? T('js_aiquizresults') : T('js_aiquizfromslides'), () => quizMod().then((Q) => (S.quiz ? Q.openResults() : Q.openMaker(Slides)))) : '',
+          S.room && S.room.pres ? item('present', T('js_show', S.room.pres.name), () => send({ t: 'stage', mode: 'pres' })) : '',
+          S.room && S.room.stage !== 'grid' ? item('grid', T('js_backtovideo'), () => send({ t: 'stage', mode: 'grid' })) : '')) : '',
+      btn(showingSpeaker ? T('js_gallery') : T('js_speaker'), showingSpeaker ? 'grid' : 'speaker', () => { S.view = showingSpeaker ? 'gallery' : 'speaker'; renderAll(); }, { title: showingSpeaker ? T('js_galleryview') : T('js_speakerview') })),
     h('div', { class: 'lm-group lm-panels' },
-      panelBtn('chat', 'Chat', 'chat', S.unread),
-      h('span', { class: 'lm-fold2' }, panelBtn('people', 'People', 'users', isMod() && S.lobby.length ? S.lobby.length : null),
-        panelBtn('notes', 'Notes', 'notes'),
+      panelBtn('chat', T('js_chat'), 'chat', S.unread),
+      h('span', { class: 'lm-fold2' }, panelBtn('people', T('js_people'), 'users', isMod() && S.lobby.length ? S.lobby.length : null),
+        panelBtn('notes', T('js_notes'), 'notes'),
         panelBtn('qa', 'Q&A', 'question'),
-        panelBtn('polls', 'Polls', 'poll', pollBadge),
-        isMod() ? panelBtn('breakouts', 'Breakouts', 'door', S.bo && S.bo.active ? '●' : null) : '')),
+        panelBtn('polls', T('js_polls'), 'poll', pollBadge),
+        isMod() ? panelBtn('breakouts', T('js_breakouts'), 'door', S.bo && S.bo.active ? '●' : null) : '')),
     h('div', { class: 'lm-group lm-fold' },
-      btn('My name', 'pen', renameMe, { title: 'Change your name as others see it in this class' }),
-      btn('Data saver', 'feather', () => setDataSaver(!S.dataSaver), { cls: S.dataSaver ? 'on' : '', pressed: !!S.dataSaver, title: 'Hear everyone and see slides and screens, without camera video' })),
+      btn(T('js_myname'), 'pen', renameMe, { title: T('js_changeyournameasothersseeitin') }),
+      btn(T('js_datasaver'), 'feather', () => setDataSaver(!S.dataSaver), { cls: S.dataSaver ? 'on' : '', pressed: !!S.dataSaver, title: T('js_heareveryoneandseeslidesand') })),
     isMod() ? h('div', { class: 'lm-group lm-fold' },
-      btn(Recorder.active ? 'Stop rec' : 'Record', Recorder.active ? 'stop' : 'rec', () => Recorder.toggle(), { cls: Recorder.active ? 'rec on' : '', pressed: !!Recorder.active, title: Recorder.active ? 'Stop recording' : 'Start recording' })) : '',
+      btn(Recorder.active ? T('js_stoprec') : T('js_record'), Recorder.active ? 'stop' : 'rec', () => Recorder.toggle(), { cls: Recorder.active ? 'rec on' : '', pressed: !!Recorder.active, title: Recorder.active ? T('js_stoprecording') : T('js_startrecording') })) : '',
     h('div', { class: 'lm-group' },
-      h('span', { class: 'lm-more' }, pop(btn('More', 'more', toggleOpen),
+      h('span', { class: 'lm-more' }, pop(btn(T('js_more'), 'more', toggleOpen),
         h('div', { class: 'lm-pop menu up-right' },
-          check('blur', 'Blur background', S.bg === 'blur', (on) => setBackground(on ? 'blur' : 'none')),
+          check('blur', T('js_blurbackground'), S.bg === 'blur', (on) => setBackground(on ? 'blur' : 'none')),
           blurSlider(),
-          item('image', bgOn ? 'Background: ' + bgLabel() : 'Background picture', () => Backgrounds.open()),
-          check('sparkles', 'Smooth skin', S.smooth, setSmooth),
-          check('sun', 'Studio look', S.look, setLook),
+          item('image', bgOn ? (T('js_background2') + ' ') + bgLabel() : T('js_backgroundpicture'), () => Backgrounds.open()),
+          check('sparkles', T('js_smoothskin'), S.smooth, setSmooth),
+          check('sun', T('js_studiolook'), S.look, setLook),
           ...lookSliders(),
           h('span', { class: 'lm-more2' },
-            item('users', 'People', () => { S.tab = 'people'; togglePanel(true); renderSide(); }),
-            item('notes', 'Notes', () => { S.tab = 'notes'; togglePanel(true); renderSide(); }),
+            item('users', T('js_people'), () => { S.tab = 'people'; togglePanel(true); renderSide(); }),
+            item('notes', T('js_notes'), () => { S.tab = 'notes'; togglePanel(true); renderSide(); }),
             item('question', 'Q&A', () => { S.tab = 'qa'; togglePanel(true); renderSide(); }),
-            item('poll', 'Polls', () => { S.tab = 'polls'; togglePanel(true); renderSide(); }),
-            isMod() ? item('door', 'Breakout rooms', () => { S.tab = 'breakouts'; togglePanel(true); renderSide(); }) : ''),
-          item('pen', 'Change my name', renameMe),
-          check('feather', 'Data saver', S.dataSaver, setDataSaver),
-          isMod() ? item(Recorder.active ? 'stop' : 'rec', Recorder.active ? 'Stop recording' : 'Start recording', () => Recorder.toggle(), Recorder.active ? 'danger' : '') : '',
-          isMod() ? item('x', 'End meeting for everyone', endMeeting, 'danger') : ''))),
-      isMod() ? h('span', { class: 'lm-fold-end' }, btn('End', 'x', endMeeting, { cls: 'end', title: 'End the meeting for everyone' })) : '',
-      btn('Leave', 'leave', leave, { cls: 'leave' })),
+            item('poll', T('js_polls'), () => { S.tab = 'polls'; togglePanel(true); renderSide(); }),
+            isMod() ? item('door', T('js_breakoutrooms'), () => { S.tab = 'breakouts'; togglePanel(true); renderSide(); }) : ''),
+          item('pen', T('js_changemyname'), renameMe),
+          check('feather', T('js_datasaver'), S.dataSaver, setDataSaver),
+          isMod() ? item(Recorder.active ? 'stop' : 'rec', Recorder.active ? T('js_stoprecording') : T('js_startrecording'), () => Recorder.toggle(), Recorder.active ? 'danger' : '') : '',
+          isMod() ? item('x', T('js_endmeetingforeveryone'), endMeeting, 'danger') : ''))),
+      isMod() ? h('span', { class: 'lm-fold-end' }, btn(T('js_end'), 'x', endMeeting, { cls: 'end', title: T('js_endthemeetingforeveryone2') })) : '',
+      btn(T('js_leave'), 'leave', leave, { cls: 'leave' })),
   );
 }
 function closePops() {
@@ -2490,7 +2495,7 @@ function setDataSaver(on) {
   S.dataSaver = on;
   lsSet('ds', on ? '1' : '0');
   send({ t: 'stats', rx: S.stats.rx, tx: S.stats.tx, ds: on });
-  toast(on ? 'Data saver on: you will hear everyone and see slides/screens, but not cameras.' : 'Data saver off');
+  toast(on ? T('js_datasaveronyouwillheareveryone') : T('js_datasaveroff'));
   renderAll();
   reconcile();
 }
@@ -2515,8 +2520,8 @@ function renderAll() {
 
 // ------------------------------------------------------------------ side panel
 const TABS = () => [
-  ['chat', 'Chat', 'chat'], ['people', 'People', 'users'], ['notes', 'Notes', 'notes'], ['qa', 'Q&A', 'question'], ['polls', 'Polls', 'poll'],
-  ...(isMod() ? [['breakouts', 'Breakouts', 'door']] : []),
+  ['chat', T('js_chat'), 'chat'], ['people', T('js_people'), 'users'], ['notes', T('js_notes'), 'notes'], ['qa', 'Q&A', 'question'], ['polls', T('js_polls'), 'poll'],
+  ...(isMod() ? [['breakouts', T('js_breakouts'), 'door']] : []),
 ];
 
 function renderSide() {
@@ -2528,7 +2533,7 @@ function renderSide() {
     if (k === 'people' && isMod() && S.lobby.length) badge = S.lobby.length;
     if (k === 'polls' && S.room.poll && S.room.poll.open && S.room.poll.mine === null && !isMod()) badge = '!';
     return h('button', { class: S.tab === k ? 'active' : '', role: 'tab', 'aria-selected': String(S.tab === k), title: l, onclick: () => { S.tab = k; if (k === 'chat') S.unread = 0; renderSide(); renderBar(); } }, icon(ic), h('span', { class: 'tl' }, l), badge ? h('span', { class: 'lm-badge' }, badge) : '');
-  }), h('button', { class: 'lm-close lm-icon-btn', title: 'Close panel', 'aria-label': 'Close panel', onclick: () => togglePanel(false) }, icon('x')));
+  }), h('button', { class: 'lm-close lm-icon-btn', title: T('js_closepanel'), 'aria-label': T('js_closepanel'), onclick: () => togglePanel(false) }, icon('x')));
   const body = h('div', { class: 'lm-side-body' });
   // Remember what the user was typing / which field had focus, so live updates don't wipe it.
   const kept = {};
@@ -2561,12 +2566,12 @@ function ChatTab(body) {
   const others = [...S.participants.values()].filter((p) => p.cid !== S.cid);
   const log = h('div', { class: 'lm-chatlog' }, ...S.chat.filter((m) => m.announce || m.dm || m.room === S.room.key).map((m) =>
     h('div', { class: 'lm-msg' + (m.announce ? ' announce' : '') + (m.dm ? ' dm' : '') + (m.cid === S.cid ? ' mine' : '') },
-      h('div', { class: 'meta' }, h('b', {}, m.dm ? (m.cid === S.cid ? `To ${m.toName}` : m.name) : m.name),
-        m.dm ? h('span', { class: 'tag' }, 'Private') : m.announce ? h('span', { class: 'tag' }, 'To all rooms') : '', h('time', {}, fmtTime(m.ts))),
+      h('div', { class: 'meta' }, h('b', {}, m.dm ? (m.cid === S.cid ? T('js_to', m.toName) : m.name) : m.name),
+        m.dm ? h('span', { class: 'tag' }, T('js_private')) : m.announce ? h('span', { class: 'tag' }, T('js_toallrooms')) : '', h('time', {}, fmtTime(m.ts))),
       h('div', { class: 'text', html: linkify(esc(m.text)) }))));
-  const to = h('select', { class: 'lm-to', 'data-keep': 'chatto', 'aria-label': 'Send to' }, h('option', { value: '' }, 'Everyone'),
+  const to = h('select', { class: 'lm-to', 'data-keep': 'chatto', 'aria-label': T('js_sendto') }, h('option', { value: '' }, T('js_everyone')),
     ...others.filter((p) => p.room === S.room.key || isMod()).map((p) => h('option', { value: p.cid }, `${p.name} (private)`)));
-  const input = h('textarea', { rows: 2, placeholder: 'Message…', 'data-keep': 'chatinput', 'data-focus': '1', onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } } });
+  const input = h('textarea', { rows: 2, placeholder: T('js_message'), 'data-keep': 'chatinput', 'data-focus': '1', onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } } });
   function sendChat() {
     const text = input.value.trim();
     if (!text) return;
@@ -2574,7 +2579,7 @@ function ChatTab(body) {
     else send({ t: 'chat', text });
     input.value = '';
   }
-  body.append(log, h('div', { class: 'lm-compose' }, to, input, h('button', { class: 'lm-primary', onclick: sendChat }, 'Send')));
+  body.append(log, h('div', { class: 'lm-compose' }, to, input, h('button', { class: 'lm-primary', onclick: sendChat }, T('js_send'))));
 }
 function linkify(s) {
   return s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
@@ -2584,24 +2589,24 @@ function PeopleTab(body) {
   const mod = isMod();
   const p = pol();
   if (mod && S.lobby.length) {
-    body.append(h('h4', {}, `Waiting to join (${S.lobby.length})`),
+    body.append(h('h4', {}, T('js_waitingtojoin2', S.lobby.length)),
       ...S.lobby.map((l) => h('div', { class: 'lm-person' }, h('span', { class: 'n' }, l.name, l.guest ? ' (guest)' : ''),
-        h('button', { onclick: () => send({ t: 'admit', cid: l.cid }) }, 'Admit'), h('button', { class: 'danger', onclick: () => send({ t: 'deny', cid: l.cid }) }, 'Deny'))),
-      h('button', { class: 'lm-primary', onclick: () => send({ t: 'admit', cid: '*' }) }, 'Admit everyone'));
+        h('button', { onclick: () => send({ t: 'admit', cid: l.cid }) }, T('js_admit')), h('button', { class: 'danger', onclick: () => send({ t: 'deny', cid: l.cid }) }, T('js_deny')))),
+      h('button', { class: 'lm-primary', onclick: () => send({ t: 'admit', cid: '*' }) }, T('js_admiteveryone')));
   }
   if (mod) {
     const sel = (val, opts, on) => h('select', { onchange: (e) => on(e.target.value) }, ...opts.map(([v, l]) => h('option', { value: v, selected: v === val }, l)));
-    body.append(h('h4', {}, 'Room controls'),
+    body.append(h('h4', {}, T('js_roomcontrols')),
       h('div', { class: 'lm-controls' },
-        h('label', { class: 'row-label' }, 'Cameras ', sel(p.video, [['teachers', 'Teachers only'], ['all', 'Everyone'], ['none', 'Audio only']], (v) => send({ t: 'policy', video: v })),
-          h('button', { title: 'Apply to every room', onclick: () => send({ t: 'policy', video: p.video, everywhere: true }) }, 'All rooms')),
-        ...[['draw', 'Students can draw'], ['notes', 'Students can edit shared notes'], ['present', 'Students can present and share screen'], ['cc', 'Captions on for everyone']].map(([k, label]) =>
+        h('label', { class: 'row-label' }, (T('js_cameras') + ' '), sel(p.video, [['teachers', T('js_teachersonly')], ['all', T('js_everyone')], ['none', T('js_audioonly')]], (v) => send({ t: 'policy', video: v })),
+          h('button', { title: T('js_applytoeveryroom'), onclick: () => send({ t: 'policy', video: p.video, everywhere: true }) }, T('js_allrooms'))),
+        ...[['draw', T('js_studentscandraw')], ['notes', T('js_studentscaneditsharednotes')], ['present', T('js_studentscanpresentandshare')], ['cc', T('js_captionsonforeveryone')]].map(([k, label]) =>
           h('label', { class: 'lm-switchrow' }, h('span', {}, label), h('input', { type: 'checkbox', checked: !!p[k], onchange: (e) => send({ t: 'policy', [k]: e.target.checked }) }), h('span', { class: 'sw' }))),
         h('div', { class: 'row' },
-          h('button', { onclick: () => send({ t: 'muteAll' }) }, icon('micOff'), 'Mute all'),
-          h('button', { onclick: () => send({ t: 'lower', cid: '*' }) }, icon('hand'), 'Lower all'),
-          h('button', { onclick: () => send({ t: 'lock', on: !S.locked }) }, icon('lock'), S.locked ? 'Unlock' : 'Lock')),
-        C.guestUrl ? h('button', { onclick: () => copyText(C.guestInvite || C.guestUrl, 'Guest invite copied. Paste it into an email or chat.') }, icon('link'), 'Copy guest invite') : ''));
+          h('button', { onclick: () => send({ t: 'muteAll' }) }, icon('micOff'), T('js_muteall')),
+          h('button', { onclick: () => send({ t: 'lower', cid: '*' }) }, icon('hand'), T('js_lowerall')),
+          h('button', { onclick: () => send({ t: 'lock', on: !S.locked }) }, icon('lock'), S.locked ? T('js_unlock') : T('js_lock'))),
+        C.guestUrl ? h('button', { onclick: () => copyText(C.guestInvite || C.guestUrl, T('js_guestinvitecopiedpasteitintoan')) }, icon('link'), T('js_copyguestinvite')) : ''));
   }
   const groups = {};
   for (const x of S.participants.values()) (groups[x.room] = groups[x.room] || []).push(x);
@@ -2611,54 +2616,54 @@ function PeopleTab(body) {
     const list = groups[k].sort((a, b) => b.hand - a.hand || b.mod - a.mod || a.name.localeCompare(b.name));
     body.append(h('h4', {}, `${roomLabel(k)} (${list.length})`), ...list.map((x) => {
       const actions = mod && x.cid !== S.cid ? [
-        x.hand ? h('button', { class: 'lm-icon-btn sm', title: 'Lower hand', onclick: () => send({ t: 'lower', cid: x.cid }) }, icon('hand')) : '',
-        h('button', { class: 'lm-icon-btn sm', title: 'Mute', onclick: () => send({ t: 'mute', cid: x.cid, kind: 'a' }) }, icon('micOff')),
-        h('button', { class: 'lm-icon-btn sm', title: 'Turn camera off', onclick: () => send({ t: 'mute', cid: x.cid, kind: 'v' }) }, icon('camOff')),
-        h('button', { class: 'lm-icon-btn sm' + (p.spot === x.cid ? ' on' : ''), title: p.spot === x.cid ? 'Remove spotlight' : 'Spotlight (everyone sees this camera)', onclick: () => send({ t: 'policy', spot: p.spot === x.cid ? null : x.cid }) }, icon('star')),
-        !x.mod ? h('button', { class: 'lm-icon-btn sm danger', title: 'Remove from meeting', onclick: () => window.confirm(`Remove ${x.name}? They cannot rejoin this session.`) && send({ t: 'kick', cid: x.cid }) }, icon('eject')) : '',
+        x.hand ? h('button', { class: 'lm-icon-btn sm', title: T('js_lowerhand'), onclick: () => send({ t: 'lower', cid: x.cid }) }, icon('hand')) : '',
+        h('button', { class: 'lm-icon-btn sm', title: T('js_mute'), onclick: () => send({ t: 'mute', cid: x.cid, kind: 'a' }) }, icon('micOff')),
+        h('button', { class: 'lm-icon-btn sm', title: T('js_turncameraoff'), onclick: () => send({ t: 'mute', cid: x.cid, kind: 'v' }) }, icon('camOff')),
+        h('button', { class: 'lm-icon-btn sm' + (p.spot === x.cid ? ' on' : ''), title: p.spot === x.cid ? T('js_removespotlight') : T('js_spotlighteveryoneseesthiscamera'), onclick: () => send({ t: 'policy', spot: p.spot === x.cid ? null : x.cid }) }, icon('star')),
+        !x.mod ? h('button', { class: 'lm-icon-btn sm danger', title: T('js_removefrommeeting'), onclick: () => window.confirm(T('js_removetheycannotrejointhis', x.name)) && send({ t: 'kick', cid: x.cid }) }, icon('eject')) : '',
       ] : [];
       return h('div', { class: 'lm-person' + (x.hand ? ' hand' : '') },
         h('span', { class: 'av', style: `background:${tone(x.name)}` }, initials(x.name)),
         h('span', { class: 'n' }, h('span', { class: 'nm' }, x.name, x.cid === S.cid ? ' (you)' : ''),
-          mod && x.real ? h('span', { class: 'role g', title: 'Name in Moodle' }, x.real) : '',
-          x.cid === S.cid ? h('button', { class: 'lm-link', onclick: renameMe }, 'Edit name') : '',
-          x.mod ? h('span', { class: 'role' }, 'Teacher') : x.guest ? h('span', { class: 'role g' }, 'Guest') : ''),
-        x.hand ? h('span', { class: 'hand-ic', title: 'Hand raised' }, icon('hand')) : '',
+          mod && x.real ? h('span', { class: 'role g', title: T('js_nameinmoodle') }, x.real) : '',
+          x.cid === S.cid ? h('button', { class: 'lm-link', onclick: renameMe }, T('js_editname')) : '',
+          x.mod ? h('span', { class: 'role' }, T('js_teacher')) : x.guest ? h('span', { class: 'role g' }, T('js_guest')) : ''),
+        x.hand ? h('span', { class: 'hand-ic', title: T('js_handraised') }, icon('hand')) : '',
         h('span', { class: 'st' }, icon(x.mu && x.mu.a ? 'micOff' : 'mic')), actions.length ? h('span', { class: 'acts' }, ...actions) : '');
     }));
   }
-  if (!mod && C.handGoal) body.append(h('p', { class: 'lm-muted' }, `Raise your hand at least ${C.handGoal} time(s) to complete this activity. This session: ${S.handCount}.`));
+  if (!mod && C.handGoal) body.append(h('p', { class: 'lm-muted' }, T('js_raiseyourhandatleasttimesto', { goal: C.handGoal, count: S.handCount })));
 }
 
 function QaTab(body) {
   const qa = (S.room.qa || []).slice().sort((a, b) => a.answered - b.answered || b.votes - a.votes || a.ts - b.ts);
-  const input = h('textarea', { rows: 2, placeholder: 'Ask a question…', 'data-keep': 'qainput', 'data-focus': '1' });
+  const input = h('textarea', { rows: 2, placeholder: T('js_askaquestion'), 'data-keep': 'qainput', 'data-focus': '1' });
   const anon = h('input', { type: 'checkbox' });
   body.append(h('div', { class: 'lm-compose col' }, input,
     h('div', { class: 'row' }, h('label', {}, anon, ' Ask anonymously'),
-      h('button', { class: 'lm-primary', onclick: () => { if (input.value.trim()) { send({ t: 'qa', op: 'ask', text: input.value, anon: anon.checked }); input.value = ''; } } }, 'Ask'))));
-  if (!qa.length) body.append(h('p', { class: 'lm-muted' }, 'No questions yet. Upvote questions you also want answered.'));
+      h('button', { class: 'lm-primary', onclick: () => { if (input.value.trim()) { send({ t: 'qa', op: 'ask', text: input.value, anon: anon.checked }); input.value = ''; } } }, T('js_ask')))));
+  if (!qa.length) body.append(h('p', { class: 'lm-muted' }, T('js_noquestionsyetupvotequestions')));
   for (const q of qa) {
     body.append(h('div', { class: 'lm-q' + (q.answered ? ' answered' : '') },
-      h('button', { class: 'vote' + (q.voted ? ' on' : ''), title: 'Upvote', 'aria-pressed': String(q.voted), onclick: () => send({ t: 'qa', op: 'up', id: q.id }) }, h('span', { class: 'up' }), h('b', {}, q.votes)),
-      h('div', { class: 'body' }, h('div', {}, q.text), h('div', { class: 'meta' }, h('b', {}, q.anon ? (q.name ? `Anonymous (${q.name})` : 'Anonymous') : q.name), h('time', {}, fmtTime(q.ts)), q.answered ? h('span', { class: 'tag ok' }, 'Answered') : '')),
-      isMod() ? h('button', { class: 'lm-icon-btn sm', title: 'Mark answered', onclick: () => send({ t: 'qa', op: 'answered', id: q.id }) }, icon('check')) : '',
-      isMod() || q.mine ? h('button', { class: 'lm-icon-btn sm', title: 'Delete', onclick: () => send({ t: 'qa', op: 'del', id: q.id }) }, icon('trash')) : ''));
+      h('button', { class: 'vote' + (q.voted ? ' on' : ''), title: T('js_upvote'), 'aria-pressed': String(q.voted), onclick: () => send({ t: 'qa', op: 'up', id: q.id }) }, h('span', { class: 'up' }), h('b', {}, q.votes)),
+      h('div', { class: 'body' }, h('div', {}, q.text), h('div', { class: 'meta' }, h('b', {}, q.anon ? (q.name ? T('js_anonymous', q.name) : T('js_anonymous2')) : q.name), h('time', {}, fmtTime(q.ts)), q.answered ? h('span', { class: 'tag ok' }, T('js_answered')) : '')),
+      isMod() ? h('button', { class: 'lm-icon-btn sm', title: T('js_markanswered'), onclick: () => send({ t: 'qa', op: 'answered', id: q.id }) }, icon('check')) : '',
+      isMod() || q.mine ? h('button', { class: 'lm-icon-btn sm', title: T('js_delete'), onclick: () => send({ t: 'qa', op: 'del', id: q.id }) }, icon('trash')) : ''));
   }
 }
 
 function PollTab(body) {
   const p = S.room.poll;
   if (isMod()) {
-    const q = h('input', { type: 'text', placeholder: 'Question', 'data-keep': 'pollq' });
-    const opts = h('textarea', { rows: 4, placeholder: 'One option per line', 'data-keep': 'pollopts' });
-    body.append(h('h4', {}, 'New poll'), h('div', { class: 'lm-compose col' }, q, opts,
+    const q = h('input', { type: 'text', placeholder: T('js_question'), 'data-keep': 'pollq' });
+    const opts = h('textarea', { rows: 4, placeholder: T('js_oneoptionperline'), 'data-keep': 'pollopts' });
+    body.append(h('h4', {}, T('js_newpoll')), h('div', { class: 'lm-compose col' }, q, opts,
       h('div', { class: 'row' },
-        h('button', { onclick: () => { q.value = 'Did that make sense?'; opts.value = 'Yes\nMostly\nNot yet'; } }, 'Quick check'),
-        h('button', { class: 'lm-primary', onclick: () => send({ t: 'poll', op: 'new', q: q.value, opts: opts.value.split('\n') }) }, 'Launch poll'))));
+        h('button', { onclick: () => { q.value = T('js_didthatmakesense'); opts.value = T('js_yesmostlynotyet'); } }, T('js_quickcheck')),
+        h('button', { class: 'lm-primary', onclick: () => send({ t: 'poll', op: 'new', q: q.value, opts: opts.value.split('\n') }) }, T('js_launchpoll')))));
   }
   if (!p) {
-    body.append(h('p', { class: 'lm-muted' }, isMod() ? 'Launch a poll to check understanding.' : 'No poll right now.'));
+    body.append(h('p', { class: 'lm-muted' }, isMod() ? T('js_launchapolltocheckunderstanding') : T('js_nopollrightnow')));
     return;
   }
   const total = p.counts ? p.counts.reduce((a, b) => a + b, 0) : p.total;
@@ -2671,9 +2676,9 @@ function PollTab(body) {
     }),
     h('div', { class: 'lm-muted' }, p.total === 1 ? '1 vote' : `${p.total} votes`, !isMod() && !p.shown ? '. Results appear when the teacher shares them.' : ''),
     isMod() ? h('div', { class: 'row' },
-      h('button', { onclick: () => send({ t: 'poll', op: 'show' }) }, p.shown ? 'Hide results' : 'Share results'),
-      p.open ? h('button', { onclick: () => send({ t: 'poll', op: 'close' }) }, 'Close voting') : '',
-      h('button', { class: 'danger', onclick: () => send({ t: 'poll', op: 'remove' }) }, 'Remove')) : ''));
+      h('button', { onclick: () => send({ t: 'poll', op: 'show' }) }, p.shown ? T('js_hideresults') : T('js_shareresults')),
+      p.open ? h('button', { onclick: () => send({ t: 'poll', op: 'close' }) }, T('js_closevoting')) : '',
+      h('button', { class: 'danger', onclick: () => send({ t: 'poll', op: 'remove' }) }, T('js_remove'))) : ''));
 }
 
 function BreakoutTab(body) {
@@ -2681,32 +2686,32 @@ function BreakoutTab(body) {
   const roomKeys = Object.keys(plan.rooms);
   if (!S.bo.active) {
     if (!roomKeys.length) {
-      body.append(h('p', {}, 'No breakout rooms are set up yet. Each teacher gets a room.'),
-        C.breakoutsUrl ? h('a', { href: C.breakoutsUrl, target: '_blank', class: 'lm-primary lm-linkbtn' }, 'Set up breakout rooms') : '');
+      body.append(h('p', {}, T('js_nobreakoutroomsaresetupyeteach')),
+        C.breakoutsUrl ? h('a', { href: C.breakoutsUrl, target: '_blank', class: 'lm-primary lm-linkbtn' }, T('js_setupbreakoutrooms')) : '');
       return;
     }
     const minutes = h('input', { type: 'number', min: 0, max: 240, value: 10, 'data-keep': 'bomin', style: 'width:5em' });
-    body.append(h('p', {}, 'One room per teacher. Students go to the teacher they are assigned to; whiteboard, slides, notes, Q&A and polls work in every room.'),
+    body.append(h('p', {}, T('js_oneroomperteacherstudentsgoto')),
       h('ul', { class: 'lm-rooms' }, ...roomKeys.map((k) => h('li', {}, plan.rooms[k], h('span', { class: 'cnt' }, `${plan.counts[k] || 0} students`)))),
-      h('div', { class: 'row' }, h('label', {}, 'Auto-close after ', minutes, ' min (0 = never)')),
+      h('div', { class: 'row' }, h('label', {}, (T('js_autocloseafter') + ' '), minutes, ' min (0 = never)')),
       h('div', { class: 'row' },
-        h('button', { class: 'lm-primary', onclick: () => send({ t: 'bo-open', rooms: plan.rooms, assign: plan.assign, minutes: +minutes.value }) }, 'Open breakout rooms'),
-        C.breakoutsUrl ? h('a', { href: C.breakoutsUrl, target: '_blank', class: 'lm-linkbtn' }, 'Edit assignments') : ''));
+        h('button', { class: 'lm-primary', onclick: () => send({ t: 'bo-open', rooms: plan.rooms, assign: plan.assign, minutes: +minutes.value }) }, T('js_openbreakoutrooms')),
+        C.breakoutsUrl ? h('a', { href: C.breakoutsUrl, target: '_blank', class: 'lm-linkbtn' }, T('js_editassignments')) : ''));
     return;
   }
-  const visit = h('select', {}, h('option', { value: 'main' }, 'Main room'), ...Object.entries(S.bo.rooms).map(([k, v]) => h('option', { value: k, selected: S.room.key === k }, v)));
-  const msg = h('input', { type: 'text', placeholder: 'Message to every room', 'data-keep': 'bomsg' });
+  const visit = h('select', {}, h('option', { value: 'main' }, T('js_mainroom')), ...Object.entries(S.bo.rooms).map(([k, v]) => h('option', { value: k, selected: S.room.key === k }, v)));
+  const msg = h('input', { type: 'text', placeholder: T('js_messagetoeveryroom'), 'data-keep': 'bomsg' });
   const counts = {};
   for (const p of S.participants.values()) counts[p.room] = (counts[p.room] || 0) + 1;
-  body.append(h('p', { class: 'lm-live' }, h('span', { class: 'dot' }), 'Breakout rooms are open'),
+  body.append(h('p', { class: 'lm-live' }, h('span', { class: 'dot' }), T('js_breakoutroomsareopen')),
     h('ul', { class: 'lm-rooms' }, ...Object.entries(S.bo.rooms).map(([k, v]) => h('li', {}, v, h('span', { class: 'cnt' }, `${counts[k] || 0} here`))),
-      h('li', {}, 'Main room', h('span', { class: 'cnt' }, `${counts.main || 0} here`))),
-    h('div', { class: 'row' }, visit, h('button', { onclick: () => send({ t: 'visit', room: visit.value }) }, 'Go to room')),
-    h('div', { class: 'row' }, msg, h('button', { onclick: () => { if (msg.value.trim()) { send({ t: 'chat', text: msg.value, announce: true }); msg.value = ''; } } }, 'Broadcast')),
+      h('li', {}, T('js_mainroom'), h('span', { class: 'cnt' }, `${counts.main || 0} here`))),
+    h('div', { class: 'row' }, visit, h('button', { onclick: () => send({ t: 'visit', room: visit.value }) }, T('js_gotoroom'))),
+    h('div', { class: 'row' }, msg, h('button', { onclick: () => { if (msg.value.trim()) { send({ t: 'chat', text: msg.value, announce: true }); msg.value = ''; } } }, T('js_broadcast'))),
     h('div', { class: 'row' },
       h('button', { onclick: () => send({ t: 'bo-extend', minutes: 5 }) }, '+5 min'),
-      h('button', { onclick: () => send({ t: 'allNotes' }) }, 'Export all rooms’ notes'),
-      h('button', { class: 'danger', onclick: () => send({ t: 'bo-close' }) }, 'Close all rooms')));
+      h('button', { onclick: () => send({ t: 'allNotes' }) }, T('js_exportallroomsnotes')),
+      h('button', { class: 'danger', onclick: () => send({ t: 'bo-close' }) }, T('js_closeallrooms'))));
 }
 
 // ------------------------------------------------------------------ shared + personal notes
@@ -2758,19 +2763,19 @@ const Notes = {
   },
   // AI summary of my private notes (plus what was said and shown), added to the end of my notes. Included in the price.
   async summariseMine(btn, ta) {
-    if (!Notes.mine || Notes.mine.trim().length < 20) return toast('Write a few notes first, then ask for a summary.');
+    if (!Notes.mine || Notes.mine.trim().length < 20) return toast(T('js_writeafewnotesfirstthenaskfora'));
     btn.disabled = true;
-    toast('Summarising your notes…');
+    toast(T('js_summarisingyournotes'));
     try {
       const r = await fetch(`${W}/ai/notes`, { method: 'POST', headers: { Authorization: 'Bearer ' + C.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: Notes.mine }) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.summary) return toast(j.error || 'The summary could not be made right now.');
+      if (!r.ok || !j.summary) return toast(j.error || T('js_thesummarycouldnotbemaderight'));
       const text = `${Notes.mine.replace(/\s+$/, '')}\n\n--- AI summary of my notes (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}) ---\n${j.summary}\n`;
       ta.value = text;
       Notes.saveMine(text);
       ta.scrollTop = ta.scrollHeight;
     } catch (e) {
-      toast('The summary could not be made right now.');
+      toast(T('js_thesummarycouldnotbemaderight'));
     } finally {
       btn.disabled = false;
     }
@@ -2787,32 +2792,32 @@ const Notes = {
       try {
         const r = await fetch(C.notesUrl, { method: 'POST', body: fd, credentials: 'same-origin' });
         const st = $('#lm-notes-status');
-        if (st) st.textContent = r.ok ? 'Saved to Moodle ' + fmtTime(Date.now()) : 'Not saved — check your connection';
+        if (st) st.textContent = r.ok ? (T('js_savedtomoodle') + ' ') + fmtTime(Date.now()) : T('js_notsavedcheckyourconnection');
       } catch (e) { /* retried on next keystroke */ }
     }, 1500);
   },
   tab(body) {
     const subtabs = h('div', { class: 'lm-subtabs' },
-      h('button', { class: Notes.sub === 'shared' ? 'active' : '', onclick: () => { Notes.sub = 'shared'; renderSide(); } }, `Shared (${S.room.name || 'room'})`),
-      h('button', { class: Notes.sub === 'mine' ? 'active' : '', onclick: () => { Notes.sub = 'mine'; renderSide(); } }, 'My notes'));
+      h('button', { class: Notes.sub === 'shared' ? 'active' : '', onclick: () => { Notes.sub = 'shared'; renderSide(); } }, T('js_shared', S.room.name || T('js_room'))),
+      h('button', { class: Notes.sub === 'mine' ? 'active' : '', onclick: () => { Notes.sub = 'mine'; renderSide(); } }, T('js_mynotes')));
     body.append(subtabs);
     if (Notes.sub === 'shared') {
-      const ta = h('textarea', { class: 'lm-notes', 'data-keep': 'sharednotes', readonly: !Notes.canEdit(), placeholder: Notes.canEdit() ? 'Shared notes for this room — everyone here sees them live.' : 'The teacher’s notes for this room appear here.', oninput: (e) => Notes.onInput(e.target) });
+      const ta = h('textarea', { class: 'lm-notes', 'data-keep': 'sharednotes', readonly: !Notes.canEdit(), placeholder: Notes.canEdit() ? T('js_sharednotesforthisroomeveryone') : T('js_theteachersnotesforthisroom'), oninput: (e) => Notes.onInput(e.target) });
       ta.value = S.notesText;
       Notes.el = ta;
       body.append(ta, h('div', { class: 'row' },
-        h('button', { onclick: () => download(`${C.title} - ${S.room.name} notes.md`, `# ${C.title} — ${S.room.name}\n\n${S.notesText}\n`) }, icon('download'), 'Download'),
-        isMod() ? h('button', { onclick: () => send({ t: 'allNotes' }) }, icon('download'), 'All rooms') : '',
-        C.exportUrl ? h('a', { class: 'lm-linkbtn', target: '_blank', href: C.exportUrl + '&type=shared' }, 'All sessions') : ''),
-      S.room.tx && S.room.tx.length ? h('p', { class: 'lm-muted' }, 'Caption transcripts are saved with the shared notes.') : '');
+        h('button', { onclick: () => download(`${C.title} - ${S.room.name} notes.md`, `# ${C.title} — ${S.room.name}\n\n${S.notesText}\n`) }, icon('download'), T('js_download')),
+        isMod() ? h('button', { onclick: () => send({ t: 'allNotes' }) }, icon('download'), T('js_allrooms')) : '',
+        C.exportUrl ? h('a', { class: 'lm-linkbtn', target: '_blank', href: C.exportUrl + '&type=shared' }, T('js_allsessions')) : ''),
+      S.room.tx && S.room.tx.length ? h('p', { class: 'lm-muted' }, T('js_captiontranscriptsaresavedwith')) : '');
     } else {
-      const ta = h('textarea', { class: 'lm-notes', 'data-keep': 'mynotes', placeholder: 'Private notes — only you can see these. They are saved to Moodle automatically.', oninput: (e) => Notes.saveMine(e.target.value) });
+      const ta = h('textarea', { class: 'lm-notes', 'data-keep': 'mynotes', placeholder: T('js_privatenotesonlyyoucanseethese'), oninput: (e) => Notes.saveMine(e.target.value) });
       ta.value = Notes.mine;
       body.append(ta, h('div', { class: 'row' },
-        h('button', { onclick: () => download(`${C.title} - my notes.md`, `# ${C.title} — my notes\n\n${Notes.mine}\n`) }, icon('download'), 'Download'),
-        h('button', { onclick: (e) => Notes.summariseMine(e.currentTarget, ta) }, icon('sparkles'), 'AI summary'),
-        C.exportUrl ? h('a', { class: 'lm-linkbtn', target: '_blank', href: C.exportUrl + '&type=mine' }, 'Export from Moodle') : '',
-        h('span', { id: 'lm-notes-status', class: 'lm-muted' }, C.notesUrl ? '' : 'Saved in this browser only')));
+        h('button', { onclick: () => download(`${C.title} - my notes.md`, `# ${C.title} — ${T('js_mynotes')}\n\n${Notes.mine}\n`) }, icon('download'), T('js_download')),
+        h('button', { onclick: (e) => Notes.summariseMine(e.currentTarget, ta) }, icon('sparkles'), T('js_aisummary')),
+        C.exportUrl ? h('a', { class: 'lm-linkbtn', target: '_blank', href: C.exportUrl + '&type=mine' }, T('js_exportfrommoodle')) : '',
+        h('span', { id: 'lm-notes-status', class: 'lm-muted' }, C.notesUrl ? '' : T('js_savedinthisbrowseronly'))));
     }
   },
 };
@@ -2986,14 +2991,14 @@ const Board = {
     bar.replaceChildren(
       ...(this.lead || []),
       ...(can ? [
-        h('div', { class: 'lm-toolgroup' }, tool('pen', 'pen', 'Pen'), tool('hl', 'marker', 'Highlighter'), tool('eraser', 'eraser', 'Eraser')),
-        h('div', { class: 'lm-toolgroup' }, ...(this.palette || COLORS).map((c) => h('button', { class: 'sw' + (t.color === c ? ' on' : ''), style: `--c:${c}`, title: 'Colour', 'aria-label': 'Colour ' + c, onclick: () => { t.color = c; if (t.tool === 'eraser') t.tool = 'pen'; this.tools(bar); } }))),
-        h('div', { class: 'lm-toolgroup' }, ...[2, 4, 8].map((w) => h('button', { class: 'lm-tool wd' + (t.width === w ? ' on' : ''), title: `${w}px line`, 'aria-label': `${w} pixel line`, onclick: () => { t.width = w; this.tools(bar); } }, h('span', { class: 'dotw', style: `--w:${w + 2}px` })))),
-        h('button', { class: 'lm-tool', title: 'Undo my last stroke', 'aria-label': 'Undo', onclick: () => { const id = this.mine.pop(); if (id) { S.room.boards[this.id] = this.strokes().filter((s) => s.id !== id); send({ t: 'wb', b: this.id, op: 'del', ids: [id] }); this.draw(); } } }, icon('undo')),
-        ...(this.stampTools ? [h('div', { class: 'lm-toolgroup' }, ...this.stampTools.map((k) => h('button', { class: 'lm-tool stamp' + (t.tool === 'stamp:' + k ? ' on' : ''), title: STAMPS[k].label, 'aria-label': 'Stamp: ' + STAMPS[k].label, onclick: () => { t.tool = 'stamp:' + k; this.tools(bar); } }, stampEl(k, true))))] : []),
-        isMod() && !this.noClear ? h('button', { class: 'lm-tool', title: 'Clear for everyone', 'aria-label': 'Clear for everyone', onclick: () => window.confirm('Clear this board for everyone?') && send({ t: 'wb', b: this.id, op: 'clear' }) }, icon('trash')) : '',
-      ] : [h('span', { class: 'lm-viewonly' }, 'View only')]),
-      h('button', { class: 'lm-tool', title: 'Save as image', 'aria-label': 'Save as image', onclick: () => this.save() }, icon('download')),
+        h('div', { class: 'lm-toolgroup' }, tool('pen', 'pen', T('js_pen')), tool('hl', 'marker', T('js_highlighter')), tool('eraser', 'eraser', T('js_eraser'))),
+        h('div', { class: 'lm-toolgroup' }, ...(this.palette || COLORS).map((c) => h('button', { class: 'sw' + (t.color === c ? ' on' : ''), style: `--c:${c}`, title: T('js_colour'), 'aria-label': (T('js_colour') + ' ') + c, onclick: () => { t.color = c; if (t.tool === 'eraser') t.tool = 'pen'; this.tools(bar); } }))),
+        h('div', { class: 'lm-toolgroup' }, ...[2, 4, 8].map((w) => h('button', { class: 'lm-tool wd' + (t.width === w ? ' on' : ''), title: `${w}px line`, 'aria-label': T('js_pixelline', w), onclick: () => { t.width = w; this.tools(bar); } }, h('span', { class: 'dotw', style: `--w:${w + 2}px` })))),
+        h('button', { class: 'lm-tool', title: T('js_undomylaststroke'), 'aria-label': T('js_undo'), onclick: () => { const id = this.mine.pop(); if (id) { S.room.boards[this.id] = this.strokes().filter((s) => s.id !== id); send({ t: 'wb', b: this.id, op: 'del', ids: [id] }); this.draw(); } } }, icon('undo')),
+        ...(this.stampTools ? [h('div', { class: 'lm-toolgroup' }, ...this.stampTools.map((k) => h('button', { class: 'lm-tool stamp' + (t.tool === 'stamp:' + k ? ' on' : ''), title: STAMPS[k].label, 'aria-label': (T('js_stamp') + ' ') + STAMPS[k].label, onclick: () => { t.tool = 'stamp:' + k; this.tools(bar); } }, stampEl(k, true))))] : []),
+        isMod() && !this.noClear ? h('button', { class: 'lm-tool', title: T('js_clearforeveryone'), 'aria-label': T('js_clearforeveryone'), onclick: () => window.confirm(T('js_clearthisboardforeveryone')) && send({ t: 'wb', b: this.id, op: 'clear' }) }, icon('trash')) : '',
+      ] : [h('span', { class: 'lm-viewonly' }, T('js_viewonly'))]),
+      h('button', { class: 'lm-tool', title: T('js_saveasimage'), 'aria-label': T('js_saveasimage'), onclick: () => this.save() }, icon('download')),
       ...(this.extra || []),
     );
   },
@@ -3032,13 +3037,13 @@ function drawStrokes(c, strokes, W2, H2, clear = true) {
 
 // Marking stamps. Green for positive, amber for "have another go" — never red on student work.
 const STAMPS = {
-  tick: { label: 'Tick', cls: 'ok', ic: 'check' },
-  cross: { label: 'Not quite', cls: 'amber', ic: 'x' },
-  star: { label: 'Star', cls: 'star', ic: 'star' },
-  smile: { label: 'Smiley', cls: 'ok', ic: 'smile' },
-  question: { label: 'Question', cls: 'blue', text: '?' },
-  great: { label: 'Great work', cls: 'ok pill', text: 'Great work' },
-  nearly: { label: 'Nearly', cls: 'amber pill', text: 'Nearly' },
+  tick: { label: T('js_tick'), cls: 'ok', ic: 'check' },
+  cross: { label: T('js_notquite'), cls: 'amber', ic: 'x' },
+  star: { label: T('js_star'), cls: 'star', ic: 'star' },
+  smile: { label: T('js_smiley'), cls: 'ok', ic: 'smile' },
+  question: { label: T('js_question'), cls: 'blue', text: '?' },
+  great: { label: T('js_greatwork'), cls: 'ok pill', text: T('js_greatwork') },
+  nearly: { label: T('js_nearly'), cls: 'amber pill', text: T('js_nearly') },
 };
 function stampEl(k, small) {
   const d = STAMPS[k];
@@ -3062,7 +3067,7 @@ const Slates = {
   },
   label(p) {
     if (!p.anon) return p.name;
-    return 'Student ' + (this.students().findIndex((x) => x.uid === p.uid) + 1);
+    return (T('js_student') + ' ') + (this.students().findIndex((x) => x.uid === p.uid) + 1);
   },
   avatar(p, size) {
     if (p.anon) return h('span', { class: 'av anon', style: `width:${size}px;height:${size}px` }, icon('users'));
@@ -3102,7 +3107,7 @@ const Slates = {
     const st = this.mark(uid).status;
     if (!st) return '';
     return h('span', { class: 'lm-mark-badge ' + (st === 'correct' ? 'ok' : 'amber') + (big ? ' big' : '') },
-      icon(st === 'correct' ? 'check' : 'undo'), st === 'correct' ? 'Correct' : 'Have another go');
+      icon(st === 'correct' ? 'check' : 'undo'), st === 'correct' ? T('js_correct') : T('js_haveanothergo'));
   },
   fit(host, wrap) {
     fitSlide(wrap, 16 / 9);
@@ -3129,14 +3134,14 @@ const Slates = {
     const list = this.students();
     const answered = list.filter((p) => (S.room.boards[this.board(p.uid)] || []).length).length;
     tools.replaceChildren(
-      h('span', { class: 'lm-slate-prompt' }, icon('pen'), sl.prompt || 'Student boards'),
+      h('span', { class: 'lm-slate-prompt' }, icon('pen'), sl.prompt || T('js_studentboards')),
       h('span', { class: 'lm-slate-count' }, `${answered} of ${list.length} answered`),
       h('div', { class: 'lm-toolgroup' },
-        h('button', { class: 'lm-tool txt ok', onclick: () => send({ t: 'slates', op: 'markAll', status: 'correct' }) }, icon('check'), 'Mark all correct'),
-        h('button', { class: 'lm-tool txt', onclick: () => send({ t: 'slates', op: 'markAll', status: null }) }, 'Clear marks')),
+        h('button', { class: 'lm-tool txt ok', onclick: () => send({ t: 'slates', op: 'markAll', status: 'correct' }) }, icon('check'), T('js_markallcorrect')),
+        h('button', { class: 'lm-tool txt', onclick: () => send({ t: 'slates', op: 'markAll', status: null }) }, T('js_clearmarks'))),
       sl.active
-        ? h('button', { class: 'lm-tool txt', onclick: () => send({ t: 'slates', op: 'end' }) }, icon('x'), 'Finish')
-        : h('button', { class: 'lm-tool txt', onclick: () => send({ t: 'slates', op: 'reopen' }) }, 'Reopen boards'));
+        ? h('button', { class: 'lm-tool txt', onclick: () => send({ t: 'slates', op: 'end' }) }, icon('x'), T('js_finish'))
+        : h('button', { class: 'lm-tool txt', onclick: () => send({ t: 'slates', op: 'reopen' }) }, T('js_reopenboards')));
     const n = list.length;
     // Choose columns so every board (16:9 paper + name row) fits the stage without scrolling when possible.
     const box = host.getBoundingClientRect();
@@ -3149,14 +3154,14 @@ const Slates = {
     const tileW = Math.max(180, Math.floor(best.w));
     const grid = h('div', { class: 'lm-slate-grid', style: `--cols:${best.cols};--tw:${tileW}px` }, ...list.map((p) => {
       const st = this.mark(p.uid).status;
-      return h('button', { class: 'lm-slate' + (st ? ' ' + st : '') + (sl.show === p.uid ? ' shown' : ''), 'aria-label': `Open ${this.label(p)}’s board`, onclick: () => { this.focus = p.uid; renderStage(); } },
+      return h('button', { class: 'lm-slate' + (st ? ' ' + st : '') + (sl.show === p.uid ? ' shown' : ''), 'aria-label': T('js_opensboard', this.label(p)), onclick: () => { this.focus = p.uid; renderStage(); } },
         h('div', { class: 'paper' },
           h('canvas', { 'data-slate': this.board(p.uid), 'data-slate2': this.board(p.uid, true) }),
           this.stamps(p.uid),
-          (S.room.boards[this.board(p.uid)] || []).length ? '' : h('span', { class: 'empty' }, 'Not started')),
+          (S.room.boards[this.board(p.uid)] || []).length ? '' : h('span', { class: 'empty' }, T('js_notstarted'))),
         h('div', { class: 'who' }, this.avatar(p, 26), h('span', { class: 'nm' }, this.label(p)), this.status(p.uid)));
     }));
-    if (!n) grid.append(h('p', { class: 'lm-muted' }, 'Student boards appear here as students join.'));
+    if (!n) grid.append(h('p', { class: 'lm-muted' }, T('js_studentboardsappearhereas')));
     host.replaceChildren(grid);
     requestAnimationFrame(() => this.refresh());
   },
@@ -3186,17 +3191,17 @@ const Slates = {
     Board.onStamp = (k, x, y) => send({ t: 'slates', op: 'stamp', uid: p.uid, k, x, y });
     Board.extra = [
       h('div', { class: 'lm-toolgroup' },
-        h('button', { class: 'lm-tool txt ok' + (this.mark(p.uid).status === 'correct' ? ' on' : ''), onclick: () => send({ t: 'slates', op: 'mark', uid: p.uid, status: this.mark(p.uid).status === 'correct' ? null : 'correct' }) }, icon('check'), 'Correct'),
-        h('button', { class: 'lm-tool txt amber' + (this.mark(p.uid).status === 'try' ? ' on' : ''), onclick: () => send({ t: 'slates', op: 'mark', uid: p.uid, status: this.mark(p.uid).status === 'try' ? null : 'try' }) }, icon('undo'), 'Have another go'),
-        h('button', { class: 'lm-tool', title: 'Remove last stamp', 'aria-label': 'Remove last stamp', onclick: () => send({ t: 'slates', op: 'unstamp', uid: p.uid }) }, icon('trash'))),
-      h('button', { class: 'lm-tool txt' + (sl.show === p.uid ? ' on' : ''), onclick: () => send({ t: 'slates', op: 'show', uid: sl.show === p.uid ? null : p.uid }) }, icon('present'), sl.show === p.uid ? 'Stop showing' : 'Show to class'),
+        h('button', { class: 'lm-tool txt ok' + (this.mark(p.uid).status === 'correct' ? ' on' : ''), onclick: () => send({ t: 'slates', op: 'mark', uid: p.uid, status: this.mark(p.uid).status === 'correct' ? null : 'correct' }) }, icon('check'), T('js_correct')),
+        h('button', { class: 'lm-tool txt amber' + (this.mark(p.uid).status === 'try' ? ' on' : ''), onclick: () => send({ t: 'slates', op: 'mark', uid: p.uid, status: this.mark(p.uid).status === 'try' ? null : 'try' }) }, icon('undo'), T('js_haveanothergo')),
+        h('button', { class: 'lm-tool', title: T('js_removelaststamp'), 'aria-label': T('js_removelaststamp'), onclick: () => send({ t: 'slates', op: 'unstamp', uid: p.uid }) }, icon('trash'))),
+      h('button', { class: 'lm-tool txt' + (sl.show === p.uid ? ' on' : ''), onclick: () => send({ t: 'slates', op: 'show', uid: sl.show === p.uid ? null : p.uid }) }, icon('present'), sl.show === p.uid ? T('js_stopshowing') : T('js_showtoclass')),
     ];
     // The way back to the grid stays in the toolbar however often the toolbar redraws.
     Board.lead = [h('div', { class: 'lm-toolgroup' },
-      h('button', { class: 'lm-tool txt', onclick: () => { this.focus = null; renderStage(); } }, icon('grid'), 'All boards'),
-      h('button', { class: 'lm-tool', title: 'Previous student', 'aria-label': 'Previous student', onclick: () => go(-1) }, icon('back')),
+      h('button', { class: 'lm-tool txt', onclick: () => { this.focus = null; renderStage(); } }, icon('grid'), T('js_allboards')),
+      h('button', { class: 'lm-tool', title: T('js_previousstudent'), 'aria-label': T('js_previousstudent'), onclick: () => go(-1) }, icon('back')),
       h('span', { class: 'lm-slate-who' }, this.avatar(p, 24), this.label(p)),
-      h('button', { class: 'lm-tool', title: 'Next student', 'aria-label': 'Next student', onclick: () => go(1) }, icon('next')))];
+      h('button', { class: 'lm-tool', title: T('js_nextstudent'), 'aria-label': T('js_nextstudent'), onclick: () => go(1) }, icon('next')))];
     Board.mount(host, null, this.board(p.uid, true), 16 / 9, wrap);
     Board.tools(tools);
     requestAnimationFrame(() => { this.refresh(); Board.resize(); });
@@ -3210,8 +3215,8 @@ const Slates = {
     Board.afterDraw = () => this.changed();
     Board.lead = null;
     Board.extra = [
-      h('label', { class: 'lm-switchrow lm-anon', title: 'Hide your name and picture on your board' },
-        h('span', {}, 'Hide my name'), h('input', { type: 'checkbox', checked: !!(me2 && me2.anon), onchange: (e) => { lsSet('anon', e.target.checked ? '1' : '0'); send({ t: 'slateanon', on: e.target.checked }); } }), h('span', { class: 'sw' })),
+      h('label', { class: 'lm-switchrow lm-anon', title: T('js_hideyournameandpictureonyour') },
+        h('span', {}, T('js_hidemyname')), h('input', { type: 'checkbox', checked: !!(me2 && me2.anon), onchange: (e) => { lsSet('anon', e.target.checked ? '1' : '0'); send({ t: 'slateanon', on: e.target.checked }); } }), h('span', { class: 'sw' })),
     ];
     const id = this.board(ME.uid);
     Board.mount(host, tools, id, 16 / 9);
@@ -3221,13 +3226,13 @@ const Slates = {
     }
     wrap.querySelectorAll('.lm-stamps, .lm-slate-head, .lm-mark-badge').forEach((x) => x.remove());
     wrap.append(this.stamps(ME.uid));
-    tools.prepend(h('span', { class: 'lm-slate-prompt', title: 'Only you and your teacher can see your board' }, icon('pen'), sl.prompt || 'Your board'),
-      this.status(ME.uid, true) || '', sl.active ? '' : h('span', { class: 'lm-viewonly' }, 'Boards are closed'));
+    tools.prepend(h('span', { class: 'lm-slate-prompt', title: T('js_onlyyouandyourteachercanseeyour') }, icon('pen'), sl.prompt || T('js_yourboard')),
+      this.status(ME.uid, true) || '', sl.active ? '' : h('span', { class: 'lm-viewonly' }, T('js_boardsareclosed')));
     requestAnimationFrame(() => this.refresh());
   },
   mountShown(host, tools, p) {
     Board.unmount();
-    tools.replaceChildren(h('span', { class: 'lm-slate-prompt' }, icon('present'), `Your teacher is showing ${this.label(p)}’s board`));
+    tools.replaceChildren(h('span', { class: 'lm-slate-prompt' }, icon('present'), T('js_yourteacherisshowingsboard', this.label(p))));
     const wrap = h('div', { class: 'lm-slide-wrap slate' },
       h('canvas', { class: 'lm-slide', 'data-slate': this.board(p.uid), 'data-slate2': this.board(p.uid, true) }),
       this.stamps(p.uid),
@@ -3261,7 +3266,7 @@ const Slides = {
   },
   async fetchFile(key) {
     const r = await fetch(`${W}/files/get?key=${encodeURIComponent(key)}`, { headers: { Authorization: 'Bearer ' + C.token } });
-    if (!r.ok) throw new Error('Could not load slides');
+    if (!r.ok) throw new Error(T('js_couldnotloadslides'));
     return r.arrayBuffer();
   },
   async doc(pres) {
@@ -3282,21 +3287,21 @@ const Slides = {
     input.click();
   },
   async upload(file) {
-    if (file.size > 50 * 1024 * 1024) return toast('Slides must be under 50 MB. Tip: export as PDF.');
+    if (file.size > 50 * 1024 * 1024) return toast(T('js_slidesmustbeunder50mbtipexport'));
     let showType = null;
     let showPages = 1;
     if (/\.(pptx?|ppsx?|pptm|odp|key|docx?|odt|rtf|txt|xlsx?|ods|csv)$/i.test(file.name)) {
       // PowerPoint, Word and Excel: Moodle converts them (PowerPoint keeps animations and transitions when the
       // server has LibreOffice).
-      if (!C.slidesUrl) return toast('Only teachers can upload Office files. Save it as PDF to present it.');
+      if (!C.slidesUrl) return toast(T('js_onlyteacherscanuploadoffice'));
       const isShow = /\.(pptx?|ppsx?|pptm|odp|key)$/i.test(file.name);
-      toast(`Preparing ${file.name}…${isShow ? ' (animations and transitions included)' : ''}`, 8000);
+      toast(T('js_preparing', file.name) + (isShow ? ' ' + T('js_animationsandtransitions') : ''), 8000);
       try {
         const fd = new FormData();
         fd.append('file', file);
         fd.append('sesskey', C.sesskey);
         const r = await fetch(C.slidesUrl, { method: 'POST', body: fd, credentials: 'same-origin' });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Conversion failed');
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || T('js_conversionfailed'));
         showType = r.headers.get('X-LiveLab-Type') === 'show' ? 'show' : 'pdf';
         showPages = parseInt(r.headers.get('X-LiveLab-Pages') || '1', 10) || 1;
         const base = file.name.replace(/\.[^.]+$/, '');
@@ -3308,13 +3313,13 @@ const Slides = {
     // Pictures: phone photos are often 12 megapixels and 5-10 MB. Everyone would download and decode that, which
     // makes the class lag. Shrink to at most 2560 px (sharper than any screen shows it) before uploading.
     if (!showType && /^image\/(jpeg|png|webp|heic|heif|bmp)$/.test(file.type)) file = await this.shrinkImage(file);
-    toast(`Uploading ${file.name}…`);
+    toast(T('js_uploading', file.name));
     try {
       const r = await fetch(`${W}/files/upload?name=${encodeURIComponent(file.name)}`, {
         method: 'POST', headers: { Authorization: 'Bearer ' + C.token, 'Content-Type': file.type }, body: file,
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error || 'Upload failed');
+      if (!r.ok) throw new Error(j.error || T('js_uploadfailed'));
       let pages = showType === 'show' ? showPages : 1;
       const type = showType === 'show' ? 'show' : file.type === 'application/pdf' ? 'pdf' : 'image';
       if (type === 'pdf') {
@@ -3376,10 +3381,10 @@ const Slides = {
     const nav = [
       h('span', { class: 'lm-pres-name' }, p.name),
       h('div', { class: 'lm-toolgroup pager' },
-        this.canPresent() ? h('button', { class: 'lm-tool', title: 'Previous slide', 'aria-label': 'Previous slide', onclick: () => this.go(-1), disabled: p.page <= 1 }, icon('back')) : '',
+        this.canPresent() ? h('button', { class: 'lm-tool', title: T('js_previousslide'), 'aria-label': T('js_previousslide'), onclick: () => this.go(-1), disabled: p.page <= 1 }, icon('back')) : '',
         h('span', { class: 'pg' }, `${p.page} / ${p.pages}`),
-        this.canPresent() ? h('button', { class: 'lm-tool', title: 'Next slide', 'aria-label': 'Next slide', onclick: () => this.go(1), disabled: p.type !== 'show' && p.page >= p.pages }, icon('next')) : ''),
-      this.canPresent() ? h('button', { class: 'lm-tool', title: 'Stop presenting', 'aria-label': 'Stop presenting', onclick: () => send({ t: 'pres', clear: true }) }, icon('x')) : '',
+        this.canPresent() ? h('button', { class: 'lm-tool', title: T('js_nextslide'), 'aria-label': T('js_nextslide'), onclick: () => this.go(1), disabled: p.type !== 'show' && p.page >= p.pages }, icon('next')) : ''),
+      this.canPresent() ? h('button', { class: 'lm-tool', title: T('js_stoppresenting'), 'aria-label': T('js_stoppresenting'), onclick: () => send({ t: 'pres', clear: true }) }, icon('x')) : '',
     ];
     Board.lead = null;
     Board.extra = nav;
@@ -3435,7 +3440,7 @@ const Slides = {
       Board.unmount();
       Board.mount(host, tools, `p:${p.key}:${p.page}`, 16 / 9, wrap);
     } catch (e) {
-      host.replaceChildren(h('p', { class: 'lm-muted' }, 'Could not show slides: ' + e.message));
+      host.replaceChildren(h('p', { class: 'lm-muted' }, (T('js_couldnotshowslides') + ' ') + e.message));
     }
   },
 };
@@ -3641,7 +3646,7 @@ const CC = {
     const p = S.participants.get(s.cid) || (s.cid === S.cid ? { name: ME.name, pic: ME.pic } : { name: s.name });
     const col = capColor(s.cid, s.name);
     s.el.style.setProperty('--cc', col);
-    s.nm.textContent = s.cid === S.cid ? 'You' : (p.name || s.name);
+    s.nm.textContent = s.cid === S.cid ? T('js_you') : (p.name || s.name);
     const pic = realPic(p.pic) ? p.pic : '';
     if (s.av.dataset.pic !== pic || s.av.dataset.col !== col) {
       s.av.dataset.pic = pic;
@@ -3725,7 +3730,7 @@ const Local = {
     await sleep(2500);
     const line = cc.lines.find((l) => l.id === m.id) || cc.history.find((l) => l.id === m.id);
     if (!line || line.translated) return cc.render();
-    if (!('Translator' in self)) return this.giveUp(line, cc);
+    if (!(T('js_translator') in self)) return this.giveUp(line, cc);
     try {
       const pair = { sourceLanguage: m.lang.split('-')[0], targetLanguage: cc.showLang().split('-')[0] };
       const key = pair.sourceLanguage + '>' + pair.targetLanguage;
@@ -3997,7 +4002,7 @@ const LangPicker = {
       this.mode = 'show';
     } else {
       CC.prefs.show = code;
-      if (code && 'Translator' in self) {
+      if (code && T('js_translator') in self) {
         // On-device translation packs (Chrome/Edge desktop) download after a click: start it now.
         self.Translator.create({ sourceLanguage: 'en', targetLanguage: code.split('-')[0] }).catch(() => {});
       }
@@ -4018,14 +4023,14 @@ const LangPicker = {
     const out = [];
     if (!this.q) {
       const sug = suggested();
-      if (sug.length) out.push(h('div', { class: 'grp' }, h('h5', {}, 'Suggested'), ...sug.map(row)));
+      if (sug.length) out.push(h('div', { class: 'grp' }, h('h5', {}, T('js_suggested')), ...sug.map(row)));
     }
     const list = searchLangs(this.q);
     for (const r of REGIONS) {
       const items = list.filter((l) => l.region === r);
       if (items.length) out.push(h('div', { class: 'grp' }, h('h5', {}, r), ...items.map(row)));
     }
-    if (!list.length) out.push(h('p', { class: 'empty' }, `Nothing matches “${this.q}”. Try the language in English, its own name, or a country.`));
+    if (!list.length) out.push(h('p', { class: 'empty' }, T('js_nothingmatchestrythelanguagein', this.q)));
     return out;
   },
   render() {
@@ -4034,7 +4039,7 @@ const LangPicker = {
     const current = speakMode ? p.speak : p.show;
     const chosen = p.show ? findLang(p.show) : null;
     const chosenName = chosen ? chosen.name.replace(/ \(.*\)$/, '') : null;
-    const listEl = h('div', { class: 'lm-lang-list', role: 'listbox', 'aria-label': speakMode ? 'Microphone language' : 'Class language', onkeydown: (e) => {
+    const listEl = h('div', { class: 'lm-lang-list', role: 'listbox', 'aria-label': speakMode ? T('js_microphonelanguage') : T('js_classlanguage'), onkeydown: (e) => {
       const all = [...this.sheet.querySelectorAll('.lm-lang')];
       const i = all.indexOf(document.activeElement);
       if (e.key === 'ArrowDown' && i < all.length - 1) { e.preventDefault(); all[i + 1].focus(); }
@@ -4042,46 +4047,46 @@ const LangPicker = {
     } });
     const fill = () => listEl.replaceChildren(
       !speakMode && !this.q ? h('button', { class: 'lm-lang same' + (!p.show ? ' on' : ''), onclick: () => this.pick('') },
-        h('span', { class: 'flag' }, icon('cc')), h('span', { class: 'nm' }, h('span', { class: 'n1' }, 'Original language'), h('span', { class: 'n2' }, 'Captions exactly as spoken, no translation')),
+        h('span', { class: 'flag' }, icon('cc')), h('span', { class: 'nm' }, h('span', { class: 'n1' }, T('js_originallanguage')), h('span', { class: 'n2' }, T('js_captionsexactlyasspokenno'))),
         !p.show ? h('span', { class: 'tick' }, icon('check')) : '') : '',
       ...this.groups(current));
     fill();
-    const input = h('input', { type: 'search', value: this.q, placeholder: 'Type a language or country — e.g. Thai, Brazil, Deutsch',
-      'aria-label': 'Search languages and countries', autocomplete: 'off',
+    const input = h('input', { type: 'search', value: this.q, placeholder: T('js_typealanguageorcountryegthai'),
+      'aria-label': T('js_searchlanguagesandcountries'), autocomplete: 'off',
       oninput: (e) => { this.q = e.target.value; fill(); },
       onkeydown: (e) => {
         if (e.key === 'Enter') { const f = searchLangs(this.q)[0]; if (f) this.pick(f.code); }
         if (e.key === 'ArrowDown') { e.preventDefault(); const b = listEl.querySelector('.lm-lang'); if (b) b.focus(); }
       } });
     const toggle = (on, title, sub, fn, disabled) => h('button', { class: 'lm-bigtoggle' + (on ? ' on' : ''), 'aria-pressed': String(on), disabled, onclick: fn },
-      h('span', { class: 'ic' }, icon(title.startsWith('Hear only') ? 'micOff' : title.startsWith('Hear') ? 'volume' : 'cc')),
+      h('span', { class: 'ic' }, icon(title.startsWith(T('js_hearonly')) ? 'micOff' : title.startsWith(T('js_hear')) ? 'volume' : 'cc')),
       h('span', { class: 'tx' }, h('b', {}, title), h('small', {}, sub)),
-      h('span', { class: 'state' }, on ? 'On' : 'Off'));
+      h('span', { class: 'state' }, on ? T('js_on') : T('js_off')));
     this.sheet.replaceChildren(
       h('header', {},
-        speakMode ? h('button', { class: 'lm-icon-btn', 'aria-label': 'Back', onclick: () => { this.mode = 'show'; this.q = ''; this.render(); } }, icon('back')) : '',
-        h('h3', { id: 'lm-sheet-title' }, speakMode ? 'Which language do you speak?' : 'Which language do you want the class in?'),
-        h('button', { class: 'lm-icon-btn', 'aria-label': 'Close', onclick: () => this.close() }, icon('x'))),
+        speakMode ? h('button', { class: 'lm-icon-btn', 'aria-label': T('js_back'), onclick: () => { this.mode = 'show'; this.q = ''; this.render(); } }, icon('back')) : '',
+        h('h3', { id: 'lm-sheet-title' }, speakMode ? T('js_whichlanguagedoyouspeak') : T('js_whichlanguagedoyouwanttheclass')),
+        h('button', { class: 'lm-icon-btn', 'aria-label': T('js_close'), onclick: () => this.close() }, icon('x'))),
       speakMode
-        ? h('p', { class: 'lm-sheet-hint' }, 'Used to turn your voice into captions for everyone else.')
-        : h('p', { class: 'lm-sheet-hint' }, 'Pick your language and everything the teacher and classmates say is shown in it.'),
+        ? h('p', { class: 'lm-sheet-hint' }, T('js_usedtoturnyourvoiceintocaptions'))
+        : h('p', { class: 'lm-sheet-hint' }, T('js_pickyourlanguageandeverything')),
       h('div', { class: 'lm-search' }, icon('search'), input),
       listEl,
       speakMode ? '' : h('footer', {},
         h('div', { class: 'lm-toggles' },
-          toggle(S.ccOn, chosenName ? `Captions in ${chosenName}` : 'Captions', 'Words appear on screen as people speak',
+          toggle(S.ccOn, chosenName ? T('js_captionsin', chosenName) : T('js_captions'), T('js_wordsappearonscreenaspeople'),
             () => { toggleCaptions(!S.ccOn); this.render(); }),
-          toggle(S.ccOn && p.voice, chosenName ? `Hear the class in ${chosenName}` : 'Hear the class in my language',
-            chosenName ? 'A voice reads the translation; the speaker is turned down' : 'Choose a language above first',
+          toggle(S.ccOn && p.voice, chosenName ? T('js_heartheclassin', chosenName) : T('js_heartheclassinmylanguage'),
+            chosenName ? T('js_avoicereadsthetranslationthe') : T('js_choosealanguageabovefirst'),
             () => { p.voice = !(S.ccOn && p.voice); if (p.voice && !S.ccOn) toggleCaptions(true); if (!p.voice) speechSynthesis.cancel(); CC.save(); applyOrigVolume(); this.render(); },
             !chosenName),
-          S.ccOn && p.voice ? toggle(!!p.muteOrig, 'Hear only the translated voice',
-            'Mutes speakers who use another language, so you only hear the translation. Speakers of your language stay on.',
+          S.ccOn && p.voice ? toggle(!!p.muteOrig, T('js_hearonlythetranslatedvoice'),
+            T('js_mutesspeakerswhouseanother'),
             () => { p.muteOrig = !p.muteOrig; CC.save(); applyOrigVolume(); this.render(); }) : ''),
         h('div', { class: 'lm-sheet-foot' },
           h('button', { class: 'lm-link', onclick: () => { this.mode = 'speak'; this.q = ''; this.render(); } },
-            icon('mic'), 'Your microphone: ', h('b', {}, langLabel(p.speak)), h('span', { class: 'chg' }, 'Change')),
-          h('button', { class: 'lm-primary', onclick: () => this.close() }, 'Done'))),
+            icon('mic'), (T('js_yourmicrophone') + ' '), h('b', {}, langLabel(p.speak)), h('span', { class: 'chg' }, T('js_change'))),
+          h('button', { class: 'lm-primary', onclick: () => this.close() }, T('js_done')))),
     );
   },
 };
@@ -4117,13 +4122,13 @@ const Recorder = {
   async rec(path, body, method = 'POST') {
     const r = await fetch(W + path, { method, headers: { Authorization: 'Bearer ' + C.token, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Recording error');
+    if (!r.ok) throw new Error(j.error || T('js_recordingerror'));
     return j;
   },
   async start() {
-    if (!window.MediaRecorder) return toast('Recording is not supported in this browser.');
+    if (!window.MediaRecorder) return toast(T('js_recordingisnotsupportedinthis'));
     const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find((m) => MediaRecorder.isTypeSupported(m));
-    if (!mime) return toast('Recording is not supported in this browser.');
+    if (!mime) return toast(T('js_recordingisnotsupportedinthis'));
     try {
       const j = await this.rec('/rec/create', { mime });
       Object.assign(this, { key: j.key, uploadId: j.uploadId, parts: [], buf: [], bufSize: 0, partNo: 1, queue: Promise.resolve(), started: Date.now() });
@@ -4205,7 +4210,7 @@ const Recorder = {
           ctx.fillStyle = tone(name);
           ctx.fillRect(cx - d / 2, cy - d / 2, d, d);
           ctx.fillStyle = '#fff';
-          ctx.font = `600 ${Math.round(d / 2.6)}px 'Instrument Sans', sans-serif`;
+          ctx.font = `600 ${Math.round(d / 2.6)}px T('js_instrumentsans'), sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(initials(name), cx, cy + 1);
@@ -4214,7 +4219,7 @@ const Recorder = {
         ctx.restore();
       }
       const label = name.slice(0, 40) + (teacher ? '  ·  Teacher' : '');
-      ctx.font = `500 15px 'Instrument Sans', sans-serif`;
+      ctx.font = `500 15px T('js_instrumentsans'), sans-serif`;
       const lw = Math.min(w - 16, ctx.measureText(label).width + 20);
       ctx.fillStyle = 'rgba(10,16,14,.72)';
       ctx.beginPath();
@@ -4299,7 +4304,7 @@ const Recorder = {
     this.active = false;
     renderBar();
     send({ t: 'rec', on: false });
-    toast('Saving recording…');
+    toast(T('js_savingrecording'));
     await new Promise((res) => {
       this.mr.onstop = res;
       this.mr.stop();
@@ -4365,7 +4370,7 @@ function startStats() {
       const lossRate = (lost - S.stats.last.lost) / Math.max(1, recv - S.stats.last.recv + lost - S.stats.last.lost);
       if (lossRate > 0.08 && !S.dataSaver && !S.suggestedSaver) {
         S.suggestedSaver = true;
-        overlayAction('Weak connection', 'Turn on Data saver? You will still hear everyone and see slides and screen shares.', 'Turn on Data saver', () => { overlay(null); setDataSaver(true); }, true);
+        overlayAction(T('js_weakconnection'), T('js_turnondatasaveryouwillstillhear'), T('js_turnondatasaver'), () => { overlay(null); setDataSaver(true); }, true);
       }
     }
     S.stats.last = { t: now, rx, tx, lost, recv };
@@ -4403,13 +4408,13 @@ function overlay(title, text, final) {
   }
   o.hidden = false;
   o.replaceChildren(h('div', { class: 'lm-card' }, h('h2', {}, title), h('p', {}, text),
-    final ? h('a', { class: 'lm-primary lm-linkbtn', href: C.returnUrl }, 'Back to course') : h('div', { class: 'lm-spinner' })));
+    final ? h('a', { class: 'lm-primary lm-linkbtn', href: C.returnUrl }, T('js_backtocourse')) : h('div', { class: 'lm-spinner' })));
 }
 function overlayAction(title, text, label, fn, dismissable) {
   const o = $('#lm-overlay');
   o.hidden = false;
   o.replaceChildren(h('div', { class: 'lm-card' }, h('h2', {}, title), h('p', {}, text),
-    h('div', { class: 'row' }, h('button', { class: 'lm-primary', onclick: fn }, label), dismissable ? h('button', { onclick: () => overlay(null) }, 'Not now') : '')));
+    h('div', { class: 'row' }, h('button', { class: 'lm-primary', onclick: fn }, label), dismissable ? h('button', { onclick: () => overlay(null) }, T('js_notnow')) : '')));
 }
 
 function cleanup() {
@@ -4495,7 +4500,7 @@ async function prejoin() {
         preview = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
         video.srcObject = preview;
         await applyFx();
-      } catch (e) { toast('Camera blocked: ' + e.message); }
+      } catch (e) { toast((T('js_camerablocked') + ' ') + e.message); }
     }
     draw();
   }
@@ -4504,13 +4509,13 @@ async function prejoin() {
     o.replaceChildren(h('div', { class: 'lm-card join' },
       h('div', { class: 'lm-preview' + (S.camOn ? '' : ' off') },
         video,
-        S.camOn ? '' : h('div', { class: 'lm-preview-off' }, realPic(ME.pic) ? h('img', { class: 'av', src: ME.pic, alt: '', style: 'object-fit:cover' }) : h('span', { class: 'av', style: `background:${tone(ME.name)}` }, initials(ME.name)), h('span', {}, camOk ? 'Camera is off' : 'Cameras are off in this class')),
+        S.camOn ? '' : h('div', { class: 'lm-preview-off' }, realPic(ME.pic) ? h('img', { class: 'av', src: ME.pic, alt: '', style: 'object-fit:cover' }) : h('span', { class: 'av', style: `background:${tone(ME.name)}` }, initials(ME.name)), h('span', {}, camOk ? T('js_cameraisoff') : T('js_camerasareoffinthisclass'))),
         h('div', { class: 'lm-preview-ctl' },
-          h('button', { class: 'lm-round' + (S.micOn ? '' : ' off'), 'aria-pressed': String(!S.micOn), title: S.micOn ? 'Turn microphone off' : 'Turn microphone on', onclick: () => { S.micOn = !S.micOn; lsSet('mic', S.micOn ? '1' : '0'); draw(); } }, icon(S.micOn ? 'mic' : 'micOff')),
-          h('button', { class: 'lm-round' + (S.camOn ? '' : ' off'), disabled: !camOk, title: camOk ? (S.camOn ? 'Turn camera off' : 'Turn camera on') : 'Cameras are off in this class', onclick: async () => { S.camOn = !S.camOn; lsSet('cam', S.camOn ? '1' : '0'); await showPreview(); } }, icon(S.camOn ? 'cam' : 'camOff'))),
+          h('button', { class: 'lm-round' + (S.micOn ? '' : ' off'), 'aria-pressed': String(!S.micOn), title: S.micOn ? T('js_turnmicrophoneoff') : T('js_turnmicrophoneon'), onclick: () => { S.micOn = !S.micOn; lsSet('mic', S.micOn ? '1' : '0'); draw(); } }, icon(S.micOn ? 'mic' : 'micOff')),
+          h('button', { class: 'lm-round' + (S.camOn ? '' : ' off'), disabled: !camOk, title: camOk ? (S.camOn ? T('js_turncameraoff') : T('js_turncameraon')) : T('js_camerasareoffinthisclass'), onclick: async () => { S.camOn = !S.camOn; lsSet('cam', S.camOn ? '1' : '0'); await showPreview(); } }, icon(S.camOn ? 'cam' : 'camOff'))),
         h('div', { class: 'lm-preview-name' }, lsGet('dname') || ME.name,
-          h('button', { class: 'lm-preview-edit', title: 'Change the name others see', 'aria-label': 'Change the name others see', onclick: (e) => {
-            const v = window.prompt('Your name as others see it in this class (leave empty to use your Moodle name):', lsGet('dname') || ME.name);
+          h('button', { class: 'lm-preview-edit', title: T('js_changethenameotherssee'), 'aria-label': T('js_changethenameotherssee'), onclick: (e) => {
+            const v = window.prompt(T('js_yournameasothersseeitinthis'), lsGet('dname') || ME.name);
             if (v === null) return;
             lsSet('dname', v.replace(/\s+/g, ' ').trim().slice(0, 60));
             e.currentTarget.parentNode.firstChild.textContent = lsGet('dname') || ME.name;
@@ -4518,33 +4523,33 @@ async function prejoin() {
       h('div', { class: 'lm-join-side' },
         C.course ? h('div', { class: 'lm-join-course' }, C.course) : '',
         h('h1', {}, C.title),
-        h('p', { class: 'lm-join-lede' }, 'Check how you look and sound, then join the class.'),
+        h('p', { class: 'lm-join-lede' }, T('js_checkhowyoulookandsoundthenjoin')),
         h('div', { class: 'lm-join-opts' },
           h('button', { class: 'lm-opt', onclick: () => { LangPicker.open('show'); const watch = setInterval(() => { if (!LangPicker.el) { clearInterval(watch); draw(); } }, 300); } },
             h('span', { class: 'ic' }, icon('cc')),
-            h('span', { class: 'tx' }, h('b', {}, 'Captions and language'), h('small', {}, ccLang ? `${ccLang.flag} ${ccLang.name}${CC.prefs.voice ? ', spoken aloud' : ''}` : (S.ccOn ? 'On, original language' : 'Off'))),
+            h('span', { class: 'tx' }, h('b', {}, T('js_captionsandlanguage')), h('small', {}, ccLang ? `${ccLang.flag} ${ccLang.name}${CC.prefs.voice ? ', spoken aloud' : ''}` : (S.ccOn ? T('js_onoriginallanguage') : T('js_off')))),
             h('span', { class: 'go' }, icon('next'))),
           h('label', { class: 'lm-opt' },
             h('span', { class: 'ic' }, icon('feather')),
-            h('span', { class: 'tx' }, h('b', {}, 'Data saver'), h('small', {}, 'Hear everyone and see slides, without camera video')),
+            h('span', { class: 'tx' }, h('b', {}, T('js_datasaver')), h('small', {}, T('js_heareveryoneandseeslideswithout'))),
             h('input', { type: 'checkbox', checked: S.dataSaver, onchange: (e) => { S.dataSaver = e.target.checked; lsSet('ds', e.target.checked ? '1' : '0'); } }), h('span', { class: 'sw' })),
           C.avatarUrl ? h('button', { class: 'lm-opt', onclick: () => Avatar.open(video, draw) },
             h('span', { class: 'ic av' }, Avatar.face(30)),
-            h('span', { class: 'tx' }, h('b', {}, 'Your picture in class'), h('small', {}, C.customPic ? 'Shown on your tile and next to your captions' : 'Add a photo or a fun avatar for your tile and captions')),
+            h('span', { class: 'tx' }, h('b', {}, T('js_yourpictureinclass')), h('small', {}, C.customPic ? T('js_shownonyourtileandnexttoyour') : T('js_addaphotoorafunavatarforyour'))),
             h('span', { class: 'go' }, icon('next'))) : '',
           camOk ? h('button', { class: 'lm-opt', onclick: () => Backgrounds.open() },
             h('span', { class: 'ic' }, icon('blur')),
-            h('span', { class: 'tx' }, h('b', {}, 'Background'), h('small', {}, bgLabel())),
+            h('span', { class: 'tx' }, h('b', {}, T('js_background')), h('small', {}, bgLabel())),
             h('span', { class: 'go' }, icon('next'))) : '',
           camOk ? h('label', { class: 'lm-opt' },
             h('span', { class: 'ic' }, icon('sun')),
-            h('span', { class: 'tx' }, h('b', {}, 'Studio look'), h('small', {}, 'A brighter picture and a slight zoom')),
+            h('span', { class: 'tx' }, h('b', {}, T('js_studiolook')), h('small', {}, T('js_abrighterpictureandaslightzoom'))),
             h('input', { type: 'checkbox', checked: S.look, onchange: (e) => setLook(e.target.checked) }), h('span', { class: 'sw' })) : '',
           camOk ? h('label', { class: 'lm-opt' },
             h('span', { class: 'ic' }, icon('sparkles')),
-            h('span', { class: 'tx' }, h('b', {}, 'Smooth skin'), h('small', {}, 'A gentle touch-up of your camera')),
+            h('span', { class: 'tx' }, h('b', {}, T('js_smoothskin')), h('small', {}, T('js_agentletouchupofyourcamera'))),
             h('input', { type: 'checkbox', checked: S.smooth, onchange: (e) => setSmooth(e.target.checked) }), h('span', { class: 'sw' })) : ''),
-        !camOk ? h('p', { class: 'lm-join-note' }, C.videoPolicy === 'none' ? 'This class is audio-only to keep it fast for everyone.' : 'Student cameras are off in this class to keep it fast for everyone. Your teacher can turn them on.') : '',
+        !camOk ? h('p', { class: 'lm-join-note' }, C.videoPolicy === 'none' ? T('js_thisclassisaudioonlytokeepit') : T('js_studentcamerasareoffinthisclass')) : '',
         h('button', { class: 'lm-primary big', onclick: async () => {
           S.onFx = null;
           S.onFxRaw = null;
@@ -4556,10 +4561,10 @@ async function prejoin() {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
           await audioCtx.resume().catch(() => {});
           o.classList.remove('join');
-          overlay('Joining…', 'Connecting to the classroom.', false);
+          overlay(T('js_joining'), T('js_connectingtotheclassroom'), false);
           connect();
-        } }, 'Join now'),
-        h('a', { href: C.returnUrl, class: 'lm-back' }, 'Back to course'))));
+        } }, T('js_joinnow')),
+        h('a', { href: C.returnUrl, class: 'lm-back' }, T('js_backtocourse')))));
   };
   await showPreview();
 }

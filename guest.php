@@ -53,7 +53,7 @@ $PAGE->set_context($context);
 $PAGE->set_pagelayout('popup');
 $PAGE->set_title(format_string($aivirtualclassroom->name));
 
-if ($name !== '' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($name !== '' && data_submitted()) {
     $guest = (object)['id' => 'g-' . random_string(12), 'name' => core_text::substr($name, 0, 60) . ' (' .
         get_string('guest') . ')'];
     $config = [

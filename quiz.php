@@ -54,7 +54,11 @@ core\session\manager::write_close();
 $types = array_values(array_intersect((array)($in['types'] ?? []), ['mcq', 'truefalse', 'matching', 'categorysort',
     'ordering', 'tapcard']));
 $body = [
-    'title' => core_text::substr(clean_param((string)($in['title'] ?? 'Quiz'), PARAM_TEXT), 0, 200),
+    'title' => core_text::substr(
+        clean_param((string)($in['title'] ?? get_string('quiz', 'mod_aivirtualclassroom')), PARAM_TEXT),
+        0,
+        200
+    ),
     'text' => core_text::substr(
         clean_param((string)($in['text'] ?? ''), PARAM_RAW_TRIMMED), // Pipeline-ignore: PARAM_RAW_TRIMMED AI only.
         0,
@@ -76,7 +80,7 @@ if ($siteid === '' || $apikey === '') {
 $body['siteId'] = $siteid;
 $body['apiKey'] = $apikey;
 
-$curl = new curl(['ignoresecurity' => true]);
+$curl = new curl();
 $res = $curl->post($server . '/api/lmslivelab/quiz', json_encode($body), [
     'CURLOPT_HTTPHEADER' => ['Content-Type: application/json'],
     'CURLOPT_TIMEOUT' => 240,
@@ -93,7 +97,13 @@ if ($code !== 200 || !is_array($j) || empty($j['questions'])) {
 }
 // Client Portal (when installed) bills the client for what the service charged.
 if (method_exists('\\local_clientportal\\api', 'record_lmslabs_call')) {
-    \local_clientportal\api::record_lmslabs_call((int)$USER->id, (int)$context->id, 'mod_aivirtualclassroom',
-        ['charged' => (int)($j['charged'] ?? 0)], 0, 'Live quiz');
+    \local_clientportal\api::record_lmslabs_call(
+        (int)$USER->id,
+        (int)$context->id,
+        'mod_aivirtualclassroom',
+        ['charged' => (int)($j['charged'] ?? 0)],
+        0,
+        get_string('clientportal_quiz', 'mod_aivirtualclassroom')
+    );
 }
 $out(['questions' => $j['questions'], 'charged' => (int)($j['charged'] ?? 0), 'balance' => $j['balance'] ?? null]);

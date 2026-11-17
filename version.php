@@ -25,9 +25,9 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_aivirtualclassroom';
-$plugin->version   = 2026121101;
+$plugin->version   = 2026121200;
 $plugin->requires  = 2024100700; // Moodle 4.5+.
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '2.5.5';
+$plugin->release   = '2.6.0';
 $plugin->supported = [405, 503];
 $plugin->dependencies = [];

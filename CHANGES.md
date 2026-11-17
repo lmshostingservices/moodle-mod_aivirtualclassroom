@@ -1,5 +1,17 @@
 # Changes
 
+## 2.6.0 (2026121200)
+- **Backup and restore.** Course backups, imports and activity duplication now include AI Virtual Classroom: the settings always, and with user data the attendance, hand raises, breakout assignments, private notes and shared notes (with caption transcripts and AI summaries). Recordings stay with the original activity, and a restored activity gets a new guest link.
+- **The meeting room is translatable.** All of the room's buttons, messages and quiz text now come from the language file, so language packs (AMOS) translate them.
+- **Office files** (PowerPoint, Word, Excel) are converted with Moodle's own document converters when one is enabled, otherwise by the LMS Labs service. The plugin no longer runs LibreOffice itself, so PowerPoint animations are no longer kept. Only teachers can upload Office files (as the room already said).
+- New setting **Background effects from Google** (on by default): turn it off to stop browsers loading the blur and framing models from Google and jsDelivr.
+- Privacy: every outside service and the data sent to it is now declared (user ID, captions, notes, slides, quiz text, browser speech recognition, effect models).
+- Outgoing requests respect the site's HTTP security settings (blocked hosts and ports).
+- Recording emails arrive in each person's own language and time zone.
+- Class picture links are signed with a random site secret.
+- Settings status boxes use the theme's alert styles.
+- Moodle code checker clean (no errors or warnings); PHPUnit tests for events, completion, privacy, reset and backup/restore.
+
 ## 2.5.5 (2026121101)
 - Works with Client Portal 2.0.1 and later: each LMS Labs AI call made in a client's course, or by a client's people, is reported to the portal with the credits it used, so the site owner can see and invoice each client's usage. The service's own figure is used when its reply gives one; otherwise the plugin's published price. Calls that fail and polled jobs are never counted twice. Nothing changes on sites without Client Portal.
 

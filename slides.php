@@ -36,7 +36,8 @@ $cm = get_coursemodule_from_id('aivirtualclassroom', $id, 0, false, MUST_EXIST);
 $context = context_module::instance($cm->id);
 require_login($cm->course, false, $cm);
 require_sesskey();
-require_capability('mod/aivirtualclassroom:join', $context);
+// Office files are converted on the server (and may use LMS Labs credits), so only teachers can upload them.
+require_capability('mod/aivirtualclassroom:moderate', $context);
 core\session\manager::write_close();
 
 $fail = function (string $msg, int $code = 400) {

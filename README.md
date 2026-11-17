@@ -11,13 +11,20 @@ Example: 2 learners in a 1-hour class = 1 credit; 30 learners for an hour = 15 c
 ## Setup (2 minutes)
 
 1. **Site administration → Plugins → Install plugins**: upload the ZIP and run the upgrade.
-2. If LMS Labs Central Config already has your Site ID and API key, you are done. If not, enter them once in **LMS Labs Central Config** (or in the AI Virtual Classroom settings if Central Config is not installed).
+2. Get a Site ID and API key from LMS Labs: buy credits at https://lms-labs.com/pricing (or ask for free trial credits on https://lms-labs.com). If LMS Labs Central Config already has them, you are done. If not, enter them once in **LMS Labs Central Config** (or in the AI Virtual Classroom settings if Central Config is not installed).
 3. Make sure cron runs (it sends the recording emails) and outgoing email works.
 4. In a course, add an **AI Virtual Classroom** activity.
 
-**Site administration → Plugins → Activity modules → AI Virtual Classroom** shows whether the site is connected. The only option there is whether students may share their screen.
+**Site administration → Plugins → Activity modules → AI Virtual Classroom** shows whether the site is connected. Options: whether students may share their screen, and whether browsers may load background-effect models from Google (see Privacy).
 
-Supports Moodle™ 4.5 and later.
+To present Word, Excel or PowerPoint files, enable a Moodle document converter (**Site administration → Plugins → Document converters**, for example unoconv). Without one, Office files are converted by the LMS Labs service. PDFs and images never need converting.
+
+## Requirements
+
+- Moodle™ 4.5 or later (tested on 4.5 to 5.3), PHP 8.1 or later, PostgreSQL or MySQL/MariaDB.
+- An LMS Labs account with credits (https://lms-labs.com). The plugin installs and runs without one, but classes cannot start until the site is connected.
+- Optional: LMS Labs Central Config (`local_aiconfig`) to share one Site ID and API key across LMS Labs plugins; Client Portal (`local_clientportal`) 2.0.1 or later to see and invoice each client's AI usage.
+- Working cron and outgoing email (recording notifications).
 
 ## Features
 
@@ -57,8 +64,31 @@ Supports Moodle™ 4.5 and later.
 - **Captions:** instant words come from the browser's Web Speech API (in Chrome, processed by Google); corrected sentences, translations and AI summaries are processed by LMS Labs cloud AI. Tell schools this for Privacy Act purposes, or leave captions off.
 - **Background blur** uses the device's built-in blur if there is one. Otherwise it loads Google MediaPipe from a CDN (CPU-heavy on old laptops).
 - **Remote control** of a shared screen isn't possible from a browser.
-- **Backup/restore** isn't implemented yet: AI Virtual Classroom activities are skipped when a course is backed up or imported. Re-add them after restoring.
+- **Backup/restore** copies the activity settings and, with user data, attendance, hand raises, breakout assignments and notes. Recordings stay with the original activity (they live in LMS Labs cloud storage) and a restored activity gets a new guest link.
 - Shared notes are designed for one or two editors at a time. Concurrent typing resyncs automatically but isn't a full collaborative editor.
+
+## Privacy and outside services
+
+AI Virtual Classroom sends data to services outside your Moodle site. Tell your learners, and check this against your privacy obligations.
+
+- **LMS Labs live class servers** (Cloudflare, plus LMS Labs media servers when used; AI captions, translation and summaries run on Cloudflare Workers AI): each person's Moodle user ID, name and picture; audio, video and screen shares; chat, Q&A, polls, whiteboard and shared notes; files presented; speech and caption text when captions are on (corrected, translated and summarised by AI); private notes when a learner asks for an AI summary; recordings (kept 12 months).
+- **lms-labs.com**: the site address, Site ID and API key; text a teacher turns into an AI quiz; Office files a teacher presents when the site has no document converter.
+- **The browser's speech recognition** (Google in Chrome) for instant captions, only when captions are on.
+- **Google and jsDelivr** for background blur, background pictures and Studio look framing models, unless an administrator turns off *Background effects from Google*.
+
+The plugin implements the Moodle privacy API (export and delete of all data it stores in Moodle).
+
+## Support
+
+- Issues: https://github.com/lmshostingservices/moodle-mod_aivirtualclassroom/issues
+- Source: https://github.com/lmshostingservices/moodle-mod_aivirtualclassroom
+- Documentation: https://lms-labs.com/docs/ai-virtual-classroom
+- Pricing and credits: https://lms-labs.com/pricing
+- Support: support@lmshostingservices.com or https://lms-labs.com/contact
+
+## Licence
+
+GNU GPL v3 or later. Bundled third-party code is listed in `thirdpartylibs.xml`.
 
 ---
 

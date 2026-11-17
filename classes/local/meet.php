@@ -234,7 +234,12 @@ class meet {
      * @return string
      */
     public static function avatar_key(int $userid, int $rev): string {
-        return substr(hash_hmac('sha256', $userid . ':' . $rev, 'aivc-avatar:' . get_site_identifier()), 0, 20);
+        $secret = (string)get_config('mod_aivirtualclassroom', 'avatarsecret');
+        if ($secret === '') {
+            $secret = random_string(40);
+            set_config('avatarsecret', $secret, 'mod_aivirtualclassroom');
+        }
+        return substr(hash_hmac('sha256', $userid . ':' . $rev, $secret), 0, 20);
     }
 
     /**
@@ -299,6 +304,22 @@ class meet {
     }
 
     /**
+     * The meeting room's interface strings (js_*) in the current language.
+     *
+     * @return array String name => text.
+     */
+    public static function js_strings(): array {
+        $all = get_string_manager()->load_component_strings('mod_aivirtualclassroom', current_language());
+        $out = [];
+        foreach ($all as $key => $text) {
+            if (strpos($key, 'js_') === 0) {
+                $out[$key] = $text;
+            }
+        }
+        return $out;
+    }
+
+    /**
      * Output the full-screen meeting page and stop.
      *
      * @param array $config Client configuration (window.AIVC_CONFIG).
@@ -309,6 +330,8 @@ class meet {
         $base = $CFG->wwwroot . '/mod/aivirtualclassroom/client/';
         $config['pdfjs'] = $base . 'vendor/';
         $config['v'] = $v;
+        $config['strings'] = self::js_strings();
+        $config['cloudEffects'] = (bool)get_config('mod_aivirtualclassroom', 'cloudeffects');
         if (!empty($config['cmid'])) {
             $config['slidesUrl'] = (new \moodle_url('/mod/aivirtualclassroom/slides.php', ['id' => $config['cmid']]))->out(false);
         }
@@ -319,7 +342,7 @@ class meet {
         $title = s($config['title']);
         $lang = current_language();
         $json = json_encode($config, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES);
-        echo '<!DOCTYPE html><html lang="' . $lang . '"><head><meta charset="utf-8">' .
+        echo '<!DOCTYPE html><html lang="' . s($lang) . '"><head><meta charset="utf-8">' .
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">' .
             '<meta name="robots" content="noindex"><title>' . $title . '</title>' .
             '<link rel="stylesheet" href="' . $base . 'meet.css?v=' . $v . '"></head><body>' .
@@ -392,7 +415,7 @@ class meet {
         require_once($CFG->libdir . '/filelib.php');
         $exp = time() + 300;
         $body = json_encode(['site' => self::config()->siteid, 'key' => $key, 'exp' => $exp, 'sig' => self::sign("del|$key|$exp")]);
-        $curl = new \curl(['ignoresecurity' => true]);
+        $curl = new \curl();
         $curl->setHeader(['Content-Type: application/json']);
         $res = $curl->post(self::worker_url() . '/rec/delete', $body);
         $info = $curl->get_info();
